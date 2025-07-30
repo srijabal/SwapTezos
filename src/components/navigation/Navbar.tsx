@@ -1,7 +1,6 @@
 import Link from "next/link";
-import WalletConnect from "../WalletConnect";
-import ThemeToggle from "../ui/ThemeToggle";
 import { Button } from "@/components/ui/button";
+import WalletButtons from "@/components/WalletButtons";
 
 export default function Navbar() {
   return (
@@ -11,7 +10,7 @@ export default function Navbar() {
           <Link href="/" className="text-xl font-bold text-primary">
             SwapTezos
           </Link>
-          
+
           <div className="hidden md:flex items-center space-x-4">
             <Link href="/swap">
               <Button variant="ghost">Swap</Button>
@@ -26,15 +25,8 @@ export default function Navbar() {
               <Button variant="ghost">Docs</Button>
             </Link>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm">
-              Connect Ethereum
-            </Button>
-            <Button variant="outline" size="sm">
-              Connect Tezos
-            </Button>
-          </div>
+
+          <WalletButtons />
         </div>
       </div>
     </nav>
