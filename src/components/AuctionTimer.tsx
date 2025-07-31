@@ -36,7 +36,7 @@ export default function AuctionTimer() {
   const progress = ((3 * 60 - (timeLeft.minutes * 60 + timeLeft.seconds)) / (3 * 60)) * 100
 
   return (
-    <div className="w-full max-w-lg mx-auto mt-8">
+    <div className="w-full">
       <div className="bg-card/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-border/30 overflow-hidden relative group">
         {/* Animated Background */}
         <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-red-500/10 pointer-events-none"></div>
