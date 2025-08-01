@@ -1,8 +1,72 @@
 -- SwapTezos Database Schema
 -- This file contains the complete database schema for the SwapTezos backend
+-- Updated for 1inch Fusion+ integration
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Cross-chain orders linked to 1inch Fusion+
+CREATE TABLE IF NOT EXISTS fusion_orders (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  fusion_order_hash VARCHAR(66) UNIQUE, -- 1inch Fusion+ order hash
+  maker_address VARCHAR(42) NOT NULL,
+  source_chain VARCHAR(10) NOT NULL CHECK (source_chain = 'ethereum'), -- Only Ethereum for now
+  dest_chain VARCHAR(10) NOT NULL CHECK (dest_chain = 'tezos'), -- Only Tezos for now
+  source_token VARCHAR(42) NOT NULL,
+  dest_token VARCHAR(42) NOT NULL, -- Tezos token address
+  source_amount DECIMAL(36, 18) NOT NULL CHECK (source_amount > 0),
+  dest_amount DECIMAL(36, 18) NOT NULL CHECK (dest_amount > 0),
+  secret_hash VARCHAR(66) NOT NULL, -- For HTLC coordination
+  fusion_auction_start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  fusion_auction_duration INTEGER NOT NULL CHECK (fusion_auction_duration > 0), -- seconds
+  tezos_timelock_hours INTEGER NOT NULL CHECK (tezos_timelock_hours BETWEEN 1 AND 72), -- HTLC timelock duration
+  status VARCHAR(20) NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'matched', 'resolved', 'cancelled', 'expired')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Cross-chain swap execution tracking
+CREATE TABLE IF NOT EXISTS cross_chain_swaps (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  fusion_order_id UUID NOT NULL REFERENCES fusion_orders(id) ON DELETE CASCADE,
+  resolver_address VARCHAR(42) NOT NULL,
+  fusion_settlement_hash VARCHAR(66), -- Ethereum settlement tx
+  tezos_htlc_address VARCHAR(36), -- Tezos HTLC contract address
+  tezos_htlc_id INTEGER, -- HTLC ID within contract
+  tezos_deposit_hash VARCHAR(51), -- Tezos operation hash
+  secret_revealed_at TIMESTAMP WITH TIME ZONE,
+  secret VARCHAR(66),
+  status VARCHAR(20) NOT NULL DEFAULT 'initiated' CHECK (status IN ('initiated', 'deposited', 'revealed', 'claimed', 'refunded', 'failed')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  -- Ensure one swap per fusion order
+  UNIQUE(fusion_order_id)
+);
+
+-- Multi-chain transaction monitoring
+CREATE TABLE IF NOT EXISTS blockchain_transactions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  swap_id UUID NOT NULL REFERENCES cross_chain_swaps(id) ON DELETE CASCADE,
+  chain VARCHAR(10) NOT NULL CHECK (chain IN ('ethereum', 'tezos')),
+  tx_hash VARCHAR(66) NOT NULL,
+  tx_type VARCHAR(30) NOT NULL CHECK (tx_type IN ('fusion_order', 'fusion_settlement', 'htlc_create', 'htlc_claim', 'htlc_refund')),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'failed')),
+  block_number BIGINT,
+  gas_used BIGINT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  confirmed_at TIMESTAMP WITH TIME ZONE,
+  
+  -- Ensure unique transaction hashes per chain
+  UNIQUE(chain, tx_hash)
+);
+
+-- Order secrets storage (encrypted in production)
+CREATE TABLE IF NOT EXISTS order_secrets (
+  order_hash VARCHAR(66) PRIMARY KEY,
+  secret VARCHAR(66) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Orders table
 CREATE TABLE IF NOT EXISTS orders (
@@ -59,6 +123,26 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 
 -- Indexes for better query performance
+-- Fusion+ related indexes
+CREATE INDEX IF NOT EXISTS idx_fusion_orders_status ON fusion_orders(status);
+CREATE INDEX IF NOT EXISTS idx_fusion_orders_maker ON fusion_orders(maker_address);
+CREATE INDEX IF NOT EXISTS idx_fusion_orders_fusion_hash ON fusion_orders(fusion_order_hash);
+CREATE INDEX IF NOT EXISTS idx_fusion_orders_auction_time ON fusion_orders(fusion_auction_start_time);
+CREATE INDEX IF NOT EXISTS idx_fusion_orders_created_at ON fusion_orders(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_cross_chain_swaps_fusion_order ON cross_chain_swaps(fusion_order_id);
+CREATE INDEX IF NOT EXISTS idx_cross_chain_swaps_resolver ON cross_chain_swaps(resolver_address);
+CREATE INDEX IF NOT EXISTS idx_cross_chain_swaps_status ON cross_chain_swaps(status);
+CREATE INDEX IF NOT EXISTS idx_cross_chain_swaps_created_at ON cross_chain_swaps(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_blockchain_transactions_swap_id ON blockchain_transactions(swap_id);
+CREATE INDEX IF NOT EXISTS idx_blockchain_transactions_chain ON blockchain_transactions(chain);
+CREATE INDEX IF NOT EXISTS idx_blockchain_transactions_status ON blockchain_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_blockchain_transactions_tx_type ON blockchain_transactions(tx_type);
+
+CREATE INDEX IF NOT EXISTS idx_order_secrets_order_hash ON order_secrets(order_hash);
+
+-- Legacy indexes
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_maker ON orders(maker_address);
 CREATE INDEX IF NOT EXISTS idx_orders_source_chain ON orders(source_chain);
@@ -87,6 +171,18 @@ END;
 $$ language 'plpgsql';
 
 -- Apply triggers to all tables
+-- Fusion+ tables
+DROP TRIGGER IF EXISTS update_fusion_orders_updated_at ON fusion_orders;
+CREATE TRIGGER update_fusion_orders_updated_at 
+    BEFORE UPDATE ON fusion_orders 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_cross_chain_swaps_updated_at ON cross_chain_swaps;
+CREATE TRIGGER update_cross_chain_swaps_updated_at 
+    BEFORE UPDATE ON cross_chain_swaps 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Legacy tables
 DROP TRIGGER IF EXISTS update_orders_updated_at ON orders;
 CREATE TRIGGER update_orders_updated_at 
     BEFORE UPDATE ON orders 

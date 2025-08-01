@@ -4,9 +4,13 @@ import dotenv from 'dotenv';
 import { Logger } from './utils/logger';
 import { DatabaseSetup } from './utils/database-setup';
 import { RelayerService } from './services/relayerService';
+import { ResolverService } from './services/resolverService';
 import { BlockchainService } from './services/blockchainService';
+import { ContractService } from './services/contractService';
+import { FusionConfig } from './config/fusion';
 
 import ordersRouter from './routes/orders';
+import fusionRouter from './routes/fusion';
 import swapsRouter from './routes/swaps';
 import statusRouter from './routes/status';
 
@@ -31,6 +35,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/orders', ordersRouter);
+app.use('/api/fusion', fusionRouter);
 app.use('/api/swaps', swapsRouter);
 app.use('/api/status', statusRouter);
 
@@ -60,10 +65,24 @@ async function initializeApp() {
     
     await DatabaseSetup.setup();
     
+    try {
+      await FusionConfig.initialize();
+      Logger.info('1inch Fusion+ SDK initialized successfully');
+    } catch (fusionError) {
+      Logger.warn('Failed to initialize 1inch Fusion+ SDK - some features may be unavailable', fusionError);
+    }
+    
+    await ContractService.initialize();
+    
     if (process.env.ENABLE_MONITORING !== 'false') {
       Logger.info('Starting blockchain monitoring services...');
       BlockchainService.startBlockSubscription();
       RelayerService.startMonitoring(30000);
+      
+      ContractService.setupEthereumEventListeners();
+      
+      Logger.info('Starting cross-chain resolver monitoring...');
+      ResolverService.startMonitoring(30000);
     }
     
     Logger.info('Application initialized successfully');
@@ -85,12 +104,14 @@ async function startServer() {
       Logger.info(`🏛️  Tezos RPC: ${process.env.TEZOS_RPC_URL || 'Using default'}`);
       
       Logger.info('🎯 Available endpoints:');
-      Logger.info('   POST /api/orders - Create new swap order');
-      Logger.info('   GET  /api/orders/:id - Get order details');
+      Logger.info('   POST /api/fusion/orders - Create new cross-chain Fusion+ order');
+      Logger.info('   GET  /api/fusion/orders/:orderHash - Get Fusion+ order details');
+      Logger.info('   POST /api/fusion/quote - Get cross-chain swap quote');
+      Logger.info('   POST /api/orders - Create legacy swap order');
       Logger.info('   POST /api/swaps/:orderId/execute - Execute swap as resolver');
       Logger.info('   GET  /api/swaps/:id - Get swap details');
       Logger.info('   GET  /api/status/:swapId - Get real-time swap status');
-      Logger.info('   GET  /api/status/health - System health check');
+      Logger.info('   GET  /health - System health check');
     });
   } catch (error) {
     Logger.error('Failed to start server', error);

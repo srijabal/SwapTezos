@@ -7,7 +7,9 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "dev": "nodemon src/app.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:fusion": "ts-node src/scripts/testFusionIntegration.ts",
+    "health": "ts-node src/scripts/testFusionIntegration.ts health"
   },
   "keywords": ["tezos", "ethereum", "cross-chain", "swap", "htlc"],
   "author": "SwapTezos Team",
@@ -21,8 +23,9 @@
     "@types/cors": "^2.8.13",
     "dotenv": "^16.0.0",
     "ethers": "^6.0.0",
-    "@taquito/taquito": "^18.0.0",
-    "@taquito/beacon-wallet": "^18.0.0",
+    "@1inch/fusion-sdk": "^2.3.5",
+    "@taquito/taquito": "^20.0.1",
+    "@taquito/beacon-wallet": "^20.0.1",
     "pg": "^8.11.0",
     "@types/pg": "^8.10.0",
     "uuid": "^9.0.0",

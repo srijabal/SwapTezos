@@ -3,8 +3,7 @@ import { OrderModel } from '../models/Order';
 import { TransactionModel } from '../models/Transaction';
 import { CryptoUtils } from '../utils/crypto';
 import { Logger } from '../utils/logger';
-import { ethereumWallet, ethereumProvider } from '../config/ethereum';
-import { tezosToolkit } from '../config/tezos';
+import { ContractService } from './contractService';
 
 export class RelayerService {
   static async monitorAndRevealSecrets(): Promise<void> {
@@ -143,7 +142,13 @@ export class RelayerService {
     try {
       Logger.info('Claiming on Ethereum', { swapId: swap.id });
       
-      const txHash = '0x' + CryptoUtils.generateSecret().substring(0, 64);
+      
+      const ethereumSwapId = await this.getEthereumSwapId(swap);
+      if (!ethereumSwapId) {
+        throw new Error('Ethereum swap ID not found');
+      }
+      
+      const txHash = await ContractService.claimEthereumSwap(ethereumSwapId, secret);
       
       Logger.info('Ethereum claim initiated', { swapId: swap.id, txHash });
       return txHash;
@@ -158,7 +163,12 @@ export class RelayerService {
     try {
       Logger.info('Claiming on Tezos', { swapId: swap.id });
       
-      const opHash = 'op' + CryptoUtils.generateSecret().substring(0, 50);
+      const tezosSwapId = await this.getTezosSwapId(swap);
+      if (!tezosSwapId) {
+        throw new Error('Tezos swap ID not found');
+      }
+      
+      const opHash = await ContractService.claimTezosSwap(tezosSwapId, secret);
       
       Logger.info('Tezos claim initiated', { swapId: swap.id, opHash });
       return opHash;
@@ -222,7 +232,12 @@ export class RelayerService {
   }
   private static async refundOnEthereum(swap: Swap): Promise<string | null> {
     try {
-      const txHash = '0x' + CryptoUtils.generateSecret().substring(0, 64);
+      const ethereumSwapId = await this.getEthereumSwapId(swap);
+      if (!ethereumSwapId) {
+        throw new Error('Ethereum swap ID not found');
+      }
+      
+      const txHash = await ContractService.refundEthereumSwap(ethereumSwapId);
       Logger.info('Ethereum refund initiated', { swapId: swap.id, txHash });
       return txHash;
     } catch (error) {
@@ -233,11 +248,39 @@ export class RelayerService {
 
   private static async refundOnTezos(swap: Swap): Promise<string | null> {
     try {
-      const opHash = 'op' + CryptoUtils.generateSecret().substring(0, 50);
+      const tezosSwapId = await this.getTezosSwapId(swap);
+      if (!tezosSwapId) {
+        throw new Error('Tezos swap ID not found');
+      }
+      
+      const opHash = await ContractService.refundTezosSwap(tezosSwapId);
       Logger.info('Tezos refund initiated', { swapId: swap.id, opHash });
       return opHash;
     } catch (error) {
       Logger.error('Failed to refund on Tezos', { swapId: swap.id, error });
+      return null;
+    }
+  }
+
+  /**
+   * Helper method to get Ethereum swap ID from our database swap
+   * This would need to be implemented based on how you track contract swap IDs
+   */
+  private static async getEthereumSwapId(swap: Swap): Promise<number | null> {
+    try {
+      return 1; 
+    } catch (error) {
+      Logger.error('Failed to get Ethereum swap ID', { swapId: swap.id, error });
+      return null;
+    }
+  }
+
+
+  private static async getTezosSwapId(swap: Swap): Promise<number | null> {
+    try {
+      return 1; 
+    } catch (error) {
+      Logger.error('Failed to get Tezos swap ID', { swapId: swap.id, error });
       return null;
     }
   }

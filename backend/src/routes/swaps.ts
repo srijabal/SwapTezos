@@ -2,11 +2,61 @@ import express from 'express';
 import { SwapModel } from '../models/Swap';
 import { OrderService } from '../services/orderService';
 import { ResolverService, ResolveOrderRequest } from '../services/resolverService';
+import { CrossChainResolverService } from '../services/crossChainResolverService';
 import { TransactionModel } from '../models/Transaction';
 import { Logger } from '../utils/logger';
 
 const router = express.Router();
 
+router.post('/:orderHash/resolve', async (req, res) => {
+  try {
+    const { orderHash } = req.params;
+    const { resolverAddress } = req.body;
+    
+    if (!resolverAddress) {
+      return res.status(400).json({ 
+        error: 'Resolver address is required' 
+      });
+    }
+
+    const isFusionOrder = orderHash.length === 66 && orderHash.startsWith('0x');
+    
+    if (!isFusionOrder) {
+      return res.status(400).json({ 
+        error: 'Invalid Fusion+ order hash format' 
+      });
+    }
+
+    const existingSwap = await ResolverService.getCrossChainSwap(orderHash);
+    if (existingSwap) {
+      return res.status(400).json({ 
+        error: 'Order already being resolved',
+        swapId: existingSwap.id
+      });
+    }
+
+    const swapExecution = await ResolverService.resolveFusionOrder({
+      orderHash,
+      resolverAddress
+    });
+    
+    res.status(201).json({
+      success: true,
+      data: swapExecution
+    });
+  } catch (error) {
+    Logger.error('Failed to resolve Fusion+ order', error);
+    res.status(500).json({ 
+      error: 'Failed to resolve Fusion+ order',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+    /**
+   * Legacy swap execution (for backwards compatibility)
+   * POST /api/swaps/:orderId/execute
+   */
 router.post('/:orderId/execute', async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -69,24 +119,42 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const swap = await SwapModel.findById(id);
-    if (!swap) {
+    // Check if it's a cross-chain swap ID or legacy swap ID
+    let swapData;
+    
+    // Try cross-chain swap first
+    const crossChainSwap = await CrossChainResolverService.getSwapExecution(id);
+    if (crossChainSwap) {
+      swapData = {
+        type: 'cross-chain',
+        swap: crossChainSwap,
+        // Add additional cross-chain swap details if needed
+      };
+    } else {
+      // Try legacy swap
+      const swap = await SwapModel.findById(id);
+      if (swap) {
+        const order = await OrderService.getOrder(swap.order_id);
+        const transactions = await TransactionModel.findBySwapId(id);
+        
+        swapData = {
+          type: 'legacy',
+          swap,
+          order,
+          transactions
+        };
+      }
+    }
+    
+    if (!swapData) {
       return res.status(404).json({ 
         error: 'Swap not found' 
       });
     }
-
-    const order = await OrderService.getOrder(swap.order_id);
-    
-    const transactions = await TransactionModel.findBySwapId(id);
     
     res.json({
       success: true,
-      data: {
-        swap,
-        order,
-        transactions
-      }
+      data: swapData
     });
   } catch (error) {
     Logger.error('Failed to get swap', error);
