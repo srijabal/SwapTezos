@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useAccount, useBalance } from "wagmi"
+import { useTezosWallet } from "@/context/TezosWalletContext"
 import {
   ArrowUpDown,
   RefreshCw,
@@ -58,9 +60,36 @@ export default function SwapForm() {
   const [slippage, setSlippage] = useState("0.5")
   const [timeDelay, setTimeDelay] = useState("")
   const [priceImpact, setPriceImpact] = useState(0)
+  const [tezosBalance, setTezosBalance] = useState("0.0000")
+
+  const { address: ethAddress, isConnected: isEthConnected } = useAccount()
+  const { data: ethBalance } = useBalance({
+    address: ethAddress,
+  })
+
+  const { Tezos, account: tezosAccount } = useTezosWallet()
 
   const exchangeRate = 1.85
   const networkFee = 2.5
+
+  useEffect(() => {
+    const fetchTezosBalance = async () => {
+      if (Tezos && tezosAccount) {
+        try {
+          const balance = await Tezos.tz.getBalance(tezosAccount)
+          const balanceInTez = balance.dividedBy(1000000).toFixed(4) 
+          setTezosBalance(balanceInTez)
+        } catch (error) {
+          console.error("Error fetching Tezos balance:", error)
+          setTezosBalance("0.0000")
+        }
+      } else {
+        setTezosBalance("0.0000")
+      }
+    }
+
+    fetchTezosBalance()
+  }, [Tezos, tezosAccount])
 
   useEffect(() => {
     if (fromAmount) {
@@ -75,6 +104,22 @@ export default function SwapForm() {
       setPriceImpact(0)
     }
   }, [fromAmount])
+
+  const getTokenBalance = (tokenSymbol: string) => {
+    if (tokenSymbol === "ETH") {
+      if (!isEthConnected || !ethBalance) return "0.0000"
+      return parseFloat(ethBalance.formatted).toFixed(4)
+    } else if (tokenSymbol === "XTZ") {
+      return tezosBalance
+    }
+    return "0.0000"
+  }
+
+  const isWalletConnected = (tokenSymbol: string) => {
+    if (tokenSymbol === "ETH") return isEthConnected
+    if (tokenSymbol === "XTZ") return !!tezosAccount
+    return false
+  }
 
   const handleSwapDirection = () => {
     setIsSwapping(true)
@@ -112,6 +157,15 @@ export default function SwapForm() {
   }
 
   const getSwapButtonContent = () => {
+    if (!isWalletConnected(fromToken) || !isWalletConnected(toToken)) {
+      return (
+        <>
+          <Wallet className="w-5 h-5" />
+          <span>Connect Wallets to Swap</span>
+        </>
+      )
+    }
+
     switch (swapPhase) {
       case "confirming":
         return (
@@ -144,10 +198,10 @@ export default function SwapForm() {
     }
   }
 
-  const isSwapDisabled = !fromAmount || Number.parseFloat(fromAmount) <= 0 || isLoading
+  const isSwapDisabled = !fromAmount || Number.parseFloat(fromAmount) <= 0 || isLoading || !isWalletConnected(fromToken) || !isWalletConnected(toToken)
 
   return (
-    <div className="w-full max-w-lg mx-auto">
+    <div className="w-full">
       {/* Main Swap Card */}
       <div className="bg-card/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-border/30 overflow-hidden relative group">
         {/* Animated Background */}
@@ -204,14 +258,19 @@ export default function SwapForm() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Wallet className="w-3 h-3" />
                   <span>
-                    Balance: {tokens[fromToken].balance} {fromToken}
+                    Balance: {isWalletConnected(fromToken) ? getTokenBalance(fromToken) : "0.0000"} {fromToken}
                   </span>
-                  <button
-                    onClick={() => setFromAmount(tokens[fromToken].balance)}
-                    className="text-primary hover:text-primary/80 font-medium transition-colors"
-                  >
-                    MAX
-                  </button>
+                  {isWalletConnected(fromToken) && (
+                    <button
+                      onClick={() => setFromAmount(getTokenBalance(fromToken))}
+                      className="text-primary hover:text-primary/80 font-medium transition-colors"
+                    >
+                      MAX
+                    </button>
+                  )}
+                  {!isWalletConnected(fromToken) && (
+                    <span className="text-xs text-amber-500">Connect wallet</span>
+                  )}
                 </div>
               </div>
 
@@ -280,8 +339,11 @@ export default function SwapForm() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Wallet className="w-3 h-3" />
                   <span>
-                    Balance: {tokens[toToken].balance} {toToken}
+                    Balance: {isWalletConnected(toToken) ? getTokenBalance(toToken) : "0.0000"} {toToken}
                   </span>
+                  {!isWalletConnected(toToken) && (
+                    <span className="text-xs text-amber-500">Connect wallet</span>
+                  )}
                 </div>
               </div>
 

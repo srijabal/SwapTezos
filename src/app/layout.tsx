@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "../components/navigation/Navbar";
-import Footer from "../components/navigation/Footer";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
 
@@ -32,8 +31,7 @@ export default function RootLayout({
           <Navbar />
           <main className="container mx-auto p-4">
             {children}
-          </main>
-          <Footer />
+          </main>          
         </Providers>
       </body>
     </html>
