@@ -1,6 +1,5 @@
-import { FusionSDK, NetworkEnum } from '@1inch/fusion-sdk';
-import { PrivateKeyProviderConnector } from '@1inch/fusion-sdk/connector';
-import { ethers } from 'ethers';
+import { FusionSDK, NetworkEnum, PrivateKeyProviderConnector } from '@1inch/fusion-sdk';
+import { Web3 } from 'web3';
 import { Logger } from '../utils/logger';
 
 export class FusionConfig {
@@ -13,11 +12,10 @@ export class FusionConfig {
     }
 
     try {
-      // Validate required environment variables
       const requiredEnvVars = [
         'FUSION_RESOLVER_PRIVATE_KEY',
         'ETHEREUM_RPC_URL',
-        'FUSION_API_TOKEN'
+        'DEV_PORTAL_API_TOKEN'
       ];
 
       for (const envVar of requiredEnvVars) {
@@ -26,24 +24,20 @@ export class FusionConfig {
         }
       }
 
-      // Create Web3 provider
-      const provider = new ethers.JsonRpcProvider(process.env.ETHEREUM_RPC_URL);
+      const web3 = new Web3(process.env.ETHEREUM_RPC_URL!);
       
-      // Create private key connector
       this.connector = new PrivateKeyProviderConnector(
         process.env.FUSION_RESOLVER_PRIVATE_KEY!,
-        provider
+        web3
       );
 
-      // Determine network based on environment
       const network = this.getNetworkFromRPC(process.env.ETHEREUM_RPC_URL!);
       
-      // Initialize Fusion SDK
       this.instance = new FusionSDK({
         url: process.env.FUSION_API_URL || 'https://api.1inch.dev/fusion',
         network,
         blockchainProvider: this.connector,
-        authKey: process.env.FUSION_API_TOKEN!
+        authKey: process.env.DEV_PORTAL_API_TOKEN!
       });
 
       Logger.info('1inch Fusion+ SDK initialized successfully', {
@@ -73,11 +67,10 @@ export class FusionConfig {
   }
 
   private static getNetworkFromRPC(rpcUrl: string): NetworkEnum {
-    // Determine network based on RPC URL
     if (rpcUrl.includes('mainnet') || rpcUrl.includes('ethereum.org')) {
       return NetworkEnum.ETHEREUM;
     } else if (rpcUrl.includes('sepolia')) {
-      return NetworkEnum.ETHEREUM; // Use Ethereum for testnets
+      return NetworkEnum.ETHEREUM;
     } else if (rpcUrl.includes('polygon')) {
       return NetworkEnum.POLYGON;
     } else if (rpcUrl.includes('binance') || rpcUrl.includes('bsc')) {
@@ -89,7 +82,6 @@ export class FusionConfig {
     } else if (rpcUrl.includes('base')) {
       return NetworkEnum.BASE;
     } else {
-      // Default to Ethereum
       Logger.warn('Could not determine network from RPC URL, defaulting to Ethereum', { rpcUrl });
       return NetworkEnum.ETHEREUM;
     }
@@ -112,8 +104,6 @@ export class FusionConfig {
         return false;
       }
 
-      // Try to get a simple quote to test connectivity
-      // This is a basic health check - you might want to implement a more specific one
       return true;
     } catch (error) {
       Logger.error('Fusion SDK health check failed', error);
@@ -122,10 +112,9 @@ export class FusionConfig {
   }
 }
 
-// Types for cross-chain orders
 export interface CrossChainOrderParams {
   sourceToken: string;
-  destToken: string; // Tezos token address
+  destToken: string;
   sourceAmount: string;
   destAmount: string;
   tezosRecipient: string;
@@ -135,7 +124,7 @@ export interface CrossChainOrderParams {
 
 export interface FusionOrderWithCrossChainData {
   orderHash: string;
-  fusionOrder: any; // 1inch Fusion order object
+  fusionOrder: any;
   crossChainData: {
     targetChain: 'tezos';
     secretHash: string;

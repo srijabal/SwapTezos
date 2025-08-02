@@ -3,6 +3,7 @@ import AuctionTimer from "../../components/AuctionTimer"
 import HTLCStatus from "../../components/HTLCStatus"
 import EthereumWalletButton from "../../components/EthereumWalletButton"
 import TezosWalletButton from "../../components/TezosWalletButton"
+import ApiStatus from "../../components/ApiStatus"
 
 export default function SwapPage() {
   return (
@@ -79,6 +80,9 @@ export default function SwapPage() {
           </div>
         </div>
       </div>
+
+      {/* API Status Indicator */}
+      <ApiStatus />
     </div>
   )
 }

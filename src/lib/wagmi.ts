@@ -5,7 +5,7 @@ import { mainnet, sepolia } from 'wagmi/chains';
 export function getWagmiConfig() {
   return getDefaultConfig({
     appName: 'SwapTezos',
-    projectId: 'd290354e90fb80fe7209b6969081a478', 
+    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID as string, 
     chains: [mainnet, sepolia],
     transports: {
       [mainnet.id]: http(),

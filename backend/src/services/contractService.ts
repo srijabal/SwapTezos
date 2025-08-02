@@ -374,7 +374,7 @@ export class ContractService {
       tezos: process.env.TEZOS_HTLC_ADDRESS
     };
   }
-          
+
   static async healthCheck(): Promise<{ ethereum: boolean; tezos: boolean }> {
     const results = { ethereum: false, tezos: false };
 

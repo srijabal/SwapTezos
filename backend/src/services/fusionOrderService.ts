@@ -37,33 +37,29 @@ export class FusionOrderService {
       const fusionSDK = FusionConfig.getInstance();
 
       const fusionOrderParams = {
-        makerAsset: params.sourceToken,
-        takerAsset: '0x0000000000000000000000000000000000000000', 
-        makingAmount: params.sourceAmount,
-        takingAmount: params.destAmount,
-        maker: params.makerAddress,
-        customData: {
-          targetChain: 'tezos' as const,
-          secretHash,
-          tezosRecipient: params.tezosRecipient,
-          timelockHours: params.timelockHours,
-          destToken: params.destToken
-        }
+        fromTokenAddress: params.sourceToken,
+        toTokenAddress: params.destToken, 
+        amount: params.sourceAmount,
+        walletAddress: params.makerAddress,
+        source: 'swaptezos-cross-chain'
       };
 
+      Logger.info('Getting Fusion+ quote', { fusionOrderParams });
       const quote = await fusionSDK.getQuote(fusionOrderParams);
       Logger.info('Fusion+ quote received', { quote });
 
+      Logger.info('Creating Fusion+ order');
       const preparedOrder = await fusionSDK.createOrder(fusionOrderParams);
-      Logger.info('Fusion+ order prepared', { orderHash: preparedOrder.order.orderHash });
+      Logger.info('Fusion+ order prepared', { orderHash: preparedOrder.order.getOrderHash() });
 
-      const submissionResult = await fusionSDK.submitOrder(preparedOrder.order, quote.quoteId);
+      Logger.info('Submitting Fusion+ order');
+      const submissionResult = await fusionSDK.submitOrder(preparedOrder.order, preparedOrder.quoteId);
       Logger.info('Fusion+ order submitted', { submissionResult });
 
       const orderId = uuidv4();
       const dbOrder = {
         id: orderId,
-        fusion_order_hash: preparedOrder.order.orderHash,
+        fusion_order_hash: preparedOrder.order.getOrderHash(),
         maker_address: params.makerAddress,
         source_chain: 'ethereum',
         dest_chain: 'tezos',
@@ -92,10 +88,10 @@ export class FusionOrderService {
         dbOrder.fusion_auction_duration, dbOrder.tezos_timelock_hours, dbOrder.status
       ]);
 
-      await this.storeOrderSecret(preparedOrder.order.orderHash, secret);
+      await this.storeOrderSecret(preparedOrder.order.getOrderHash(), secret);
 
       return {
-        orderHash: preparedOrder.order.orderHash,
+        orderHash: preparedOrder.order.getOrderHash(),
         fusionOrder: preparedOrder.order,
         crossChainData: {
           targetChain: 'tezos',

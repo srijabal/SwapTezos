@@ -66,7 +66,7 @@ export class DatabaseSetup {
       const result = await pool.query('SELECT name FROM migrations');
       const executedMigrations = result.rows.map(row => row.name);
       
-      const availableMigrations = [];
+      const availableMigrations: string[] = [];
       
       for (const migration of availableMigrations) {
         if (!executedMigrations.includes(migration)) {

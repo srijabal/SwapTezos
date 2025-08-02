@@ -1,7 +1,18 @@
 import express from 'express';
-import { OrderService, CreateOrderRequest } from '../services/orderService';
-import { FusionOrderService } from '../services/fusionOrderService';
+import { FusionOrderService, FusionOrderCreationParams } from '../services/fusionOrderService';
 import { Logger } from '../utils/logger';
+
+export interface CreateOrderRequest {
+  makerAddress: string;
+  sourceChain: string;
+  destChain: string;
+  sourceToken: string;
+  destToken: string;
+  sourceAmount: string;
+  destAmount: string;
+  timelockMinutes: number;
+  tezosRecipient?: string;
+}
 
 const router = express.Router();
 
@@ -60,19 +71,34 @@ router.post('/orders', async (req, res) => {
       });
     }
 
-    const fusionOrder = await OrderService.createCrossChainOrder(orderRequest);
-    
-    res.status(201).json({
-      success: true,
-      data: {
-        orderHash: fusionOrder.orderHash,
-        secretHash: fusionOrder.crossChainData.secretHash,
-        targetChain: fusionOrder.crossChainData.targetChain,
-        tezosRecipient: fusionOrder.crossChainData.tezosRecipient,
-        timelockHours: fusionOrder.crossChainData.timelockHours,
-        fusionOrder: fusionOrder.fusionOrder
-      }
-    });
+    if (orderRequest.sourceChain === 'ethereum' && orderRequest.destChain === 'tezos') {
+      const fusionParams: FusionOrderCreationParams = {
+        makerAddress: orderRequest.makerAddress,
+        sourceToken: orderRequest.sourceToken,
+        destToken: orderRequest.destToken,
+        sourceAmount: orderRequest.sourceAmount,
+        destAmount: orderRequest.destAmount,
+        tezosRecipient: orderRequest.tezosRecipient!,
+        timelockHours: Math.ceil(orderRequest.timelockMinutes / 60),
+        auctionDuration: 180
+      };
+      
+      const fusionOrder = await FusionOrderService.createCrossChainOrder(fusionParams);
+      
+      res.status(201).json({
+        success: true,
+        data: {
+          orderHash: fusionOrder.orderHash,
+          secretHash: fusionOrder.crossChainData.secretHash,
+          targetChain: fusionOrder.crossChainData.targetChain,
+          tezosRecipient: fusionOrder.crossChainData.tezosRecipient,
+          timelockHours: fusionOrder.crossChainData.timelockHours,
+          fusionOrder: fusionOrder.fusionOrder
+        }
+      });
+    } else {
+      throw new Error('Tezos -> Ethereum flow not yet implemented');
+    }
   } catch (error) {
     Logger.error('Failed to create Fusion+ order', error);
     res.status(500).json({ 

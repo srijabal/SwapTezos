@@ -3,15 +3,12 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { Logger } from './utils/logger';
 import { DatabaseSetup } from './utils/database-setup';
-import { RelayerService } from './services/relayerService';
 import { ResolverService } from './services/resolverService';
 import { BlockchainService } from './services/blockchainService';
 import { ContractService } from './services/contractService';
 import { FusionConfig } from './config/fusion';
 
-import ordersRouter from './routes/orders';
 import fusionRouter from './routes/fusion';
-import swapsRouter from './routes/swaps';
 import statusRouter from './routes/status';
 
 dotenv.config();
@@ -34,9 +31,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/api/orders', ordersRouter);
 app.use('/api/fusion', fusionRouter);
-app.use('/api/swaps', swapsRouter);
 app.use('/api/status', statusRouter);
 
 app.get('/health', (req, res) => {
@@ -77,7 +72,6 @@ async function initializeApp() {
     if (process.env.ENABLE_MONITORING !== 'false') {
       Logger.info('Starting blockchain monitoring services...');
       BlockchainService.startBlockSubscription();
-      RelayerService.startMonitoring(30000);
       
       ContractService.setupEthereumEventListeners();
       

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { useAccount, useBalance } from "wagmi"
 import { useTezosWallet } from "@/context/TezosWalletContext"
+import { api, ApiError, CreateOrderRequest, QuoteRequest } from "@/lib/api"
+import { useOrderTracking } from "@/hooks/useOrderTracking"
 import {
   ArrowUpDown,
   RefreshCw,
@@ -69,8 +71,13 @@ export default function SwapForm() {
 
   const { Tezos, account: tezosAccount } = useTezosWallet()
 
-  const exchangeRate = 1.85
+  const [exchangeRate, setExchangeRate] = useState<number>(1.85)
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false)
+  const [quoteError, setQuoteError] = useState<string | null>(null)
+  const [currentOrderHash, setCurrentOrderHash] = useState<string | null>(null)
   const networkFee = 2.5
+
+  const { orderStatus, isLoading: isOrderLoading, error: orderError } = useOrderTracking(currentOrderHash)
 
   useEffect(() => {
     const fetchTezosBalance = async () => {
@@ -91,19 +98,62 @@ export default function SwapForm() {
     fetchTezosBalance()
   }, [Tezos, tezosAccount])
 
+  const fetchQuote = async (amount: string, fromToken: string, toToken: string) => {
+    if (!amount || parseFloat(amount) <= 0) {
+      setToAmount("")
+      setPriceImpact(0)
+      setQuoteError(null)
+      return
+    }
+
+    setIsLoadingQuote(true)
+    setQuoteError(null)
+
+    try {
+      const quoteRequest: QuoteRequest = {
+        fromToken,
+        toToken,
+        amount,
+        fromChain: fromToken === "ETH" ? "ethereum" : "tezos",
+        toChain: toToken === "ETH" ? "ethereum" : "tezos"
+      }
+
+      const quote = await api.getQuote(quoteRequest)
+      
+      setExchangeRate(parseFloat(quote.exchangeRate))
+      setToAmount(quote.toAmount)
+      setPriceImpact(parseFloat(quote.priceImpact))
+      
+    } catch (error) {
+      console.error("Failed to fetch quote:", error)
+      if (error instanceof ApiError) {
+        setQuoteError(error.message)
+      } else {
+        setQuoteError("Failed to get quote. Using fallback rate.")
+      }
+      
+      const converted = (Number.parseFloat(amount) * 1.85).toFixed(6)
+      setToAmount(converted)
+      setPriceImpact(Math.min(Number.parseFloat(amount) * 0.1, 5))
+    } finally {
+      setIsLoadingQuote(false)
+    }
+  }
+
   useEffect(() => {
     if (fromAmount) {
-      const converted = (Number.parseFloat(fromAmount) * exchangeRate).toFixed(6)
-      setToAmount(converted)
-
-      // Calculate price impact (mock calculation)
-      const impact = Math.min(Number.parseFloat(fromAmount) * 0.1, 5)
-      setPriceImpact(impact)
+       
+      const timeoutId = setTimeout(() => {
+        fetchQuote(fromAmount, fromToken, toToken)
+      }, 500)
+      
+      return () => clearTimeout(timeoutId)
     } else {
       setToAmount("")
       setPriceImpact(0)
+      setQuoteError(null)
     }
-  }, [fromAmount])
+  }, [fromAmount, fromToken, toToken])
 
   const getTokenBalance = (tokenSymbol: string) => {
     if (tokenSymbol === "ETH") {
@@ -138,22 +188,68 @@ export default function SwapForm() {
 
   const handleSwap = async () => {
     if (!fromAmount || Number.parseFloat(fromAmount) <= 0) return
+    if (!ethAddress && !tezosAccount) return
 
     setSwapPhase("confirming")
     setIsLoading(true)
 
-    // Simulate swap process
-    setTimeout(() => setSwapPhase("processing"), 1500)
-    setTimeout(() => {
-      setSwapPhase("success")
+    try {
+      const makerAddress = fromToken === "ETH" ? ethAddress : tezosAccount
+      const tezosRecipient = toToken === "XTZ" ? tezosAccount : undefined
+
+      if (!makerAddress) {
+        throw new Error("Wallet not connected")
+      }
+
+      const orderRequest: CreateOrderRequest = {
+        makerAddress,
+        sourceChain: fromToken === "ETH" ? "ethereum" : "tezos",
+        destChain: toToken === "ETH" ? "ethereum" : "tezos", 
+        sourceToken: fromToken === "ETH" ? "0x0000000000000000000000000000000000000000" : "KT1TUx83WuwtA2Ku1pi6A9AZqov7CZfYtLUS", // ETH or XTZ token addresses
+        destToken: toToken === "ETH" ? "0x0000000000000000000000000000000000000000" : "KT1TUx83WuwtA2Ku1pi6A9AZqov7CZfYtLUS",
+        sourceAmount: fromAmount,
+        destAmount: toAmount,
+        timelockMinutes: parseInt(timeDelay || "15") * 60,
+        tezosRecipient
+      }
+
+      setSwapPhase("processing")
+
+      const response = await api.createOrder(orderRequest)
+      
+      if (response.success) {
+        setSwapPhase("success")
+        console.log("Order created:", response.data)
+        
+        setCurrentOrderHash(response.data.orderHash)
+        localStorage.setItem('lastOrderHash', response.data.orderHash)
+      } else {
+        throw new Error("Failed to create order")
+      }
+
+    } catch (error) {
+      console.error("Swap failed:", error)
+      
+      let errorMessage = "Swap failed"
+      if (error instanceof ApiError) {
+        errorMessage = error.message
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
+      setSwapPhase("idle")
+      alert(`Swap failed: ${errorMessage}`)
+      
+    } finally {
       setIsLoading(false)
-    }, 4000)
+    }
   }
 
   const resetSwap = () => {
     setSwapPhase("idle")
     setFromAmount("")
     setToAmount("")
+    setCurrentOrderHash(null)
   }
 
   const getSwapButtonContent = () => {
@@ -389,10 +485,29 @@ export default function SwapForm() {
                     <TrendingUp className="w-4 h-4" />
                     <span>Exchange Rate</span>
                   </div>
-                  <span className="font-medium text-card-foreground">
-                    1 {fromToken} = {exchangeRate} {toToken}
+                  <span className="font-medium text-card-foreground flex items-center gap-2">
+                    {isLoadingQuote ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span>Getting rate...</span>
+                      </>
+                    ) : quoteError ? (
+                      <>
+                        <Info className="w-3 h-3 text-amber-500" />
+                        <span className="text-amber-500 text-xs">Fallback rate</span>
+                      </>
+                    ) : (
+                      <span>1 {fromToken} = {exchangeRate.toFixed(4)} {toToken}</span>
+                    )}
                   </span>
                 </div>
+
+                {quoteError && (
+                  <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg">
+                    <Info className="w-3 h-3" />
+                    <span>{quoteError}</span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Network Fee</span>
@@ -526,16 +641,31 @@ export default function SwapForm() {
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                     <div className="text-sm flex-1">
-                      <p className="text-green-600 dark:text-green-400 font-medium">Swap completed successfully!</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <p className="text-green-600/80 dark:text-green-400/80 text-xs">Transaction: 0x1234...5678</p>
-                        <button className="text-green-500 hover:text-green-600 transition-colors">
-                          <Copy className="w-3 h-3" />
-                        </button>
-                        <button className="text-green-500 hover:text-green-600 transition-colors">
-                          <ExternalLink className="w-3 h-3" />
-                        </button>
-                      </div>
+                      <p className="text-green-600 dark:text-green-400 font-medium">Cross-chain order created!</p>
+                      {currentOrderHash && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <p className="text-green-600/80 dark:text-green-400/80 text-xs">
+                            Order: {currentOrderHash.slice(0, 6)}...{currentOrderHash.slice(-4)}
+                          </p>
+                          <button 
+                            onClick={() => navigator.clipboard.writeText(currentOrderHash)}
+                            className="text-green-500 hover:text-green-600 transition-colors"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          <button className="text-green-500 hover:text-green-600 transition-colors">
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                      {orderStatus && (
+                        <div className="mt-2 text-xs text-green-600/80">
+                          <p>Status: <span className="capitalize">{orderStatus.status}</span></p>
+                          {orderStatus.crossChainSwapId && (
+                            <p>Swap ID: {orderStatus.crossChainSwapId}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

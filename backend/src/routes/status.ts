@@ -1,140 +1,51 @@
 import express from 'express';
 import { SwapModel } from '../models/Swap';
-import { OrderService } from '../services/orderService';
+import { FusionOrderService } from '../services/fusionOrderService';
 import { TransactionModel } from '../models/Transaction';
 import { BlockchainService } from '../services/blockchainService';
 import { Logger } from '../utils/logger';
 
 const router = express.Router();
 
-router.get('/:swapId', async (req, res) => {
+router.get('/fusion/:orderHash', async (req, res) => {
   try {
-    const { swapId } = req.params;
+    const { orderHash } = req.params;
     
-    const swap = await SwapModel.findById(swapId);
-    if (!swap) {
+    const orderStatus = await FusionOrderService.getOrderStatus(orderHash);
+    if (!orderStatus) {
       return res.status(404).json({ 
-        error: 'Swap not found' 
+        error: 'Order not found' 
       });
     }
-
-    const order = await OrderService.getOrder(swap.order_id);
-    if (!order) {
-      return res.status(404).json({ 
-        error: 'Associated order not found' 
-      });
-    }
-
-    const transactions = await TransactionModel.findBySwapId(swapId);
-    
-    const blockchainTxs = await Promise.all(
-      transactions.map(async (tx) => {
-        if (tx.chain === 'ethereum' && tx.tx_hash) {
-          return await BlockchainService.getEthereumTransaction(tx.tx_hash);
-        } else if (tx.chain === 'tezos' && tx.tx_hash) {
-          return await BlockchainService.getTezosTransaction(tx.tx_hash);
-        }
-        return null;
-      })
-    );
-
-    let progress = 0;
-    switch (swap.status) {
-      case 'pending':
-        progress = 10;
-        break;
-      case 'deposited':
-        progress = 50;
-        break;
-      case 'claimed':
-        progress = 90;
-        break;
-      case 'completed':
-        progress = 100;
-        break;
-      case 'refunded':
-      case 'failed':
-        progress = 0;
-        break;
-    }
-
-    const isExpired = new Date() > order.timelock;
-    const timeRemaining = isExpired ? 0 : order.timelock.getTime() - Date.now();
 
     res.json({
       success: true,
-      data: {
-        swapId: swap.id,
-        orderId: swap.order_id,
-        status: swap.status,
-        progress,
-        timelock: order.timelock,
-        timeRemaining,
-        isExpired,
-        transactions: transactions.map((tx, index) => ({
-          ...tx,
-          blockchainDetails: blockchainTxs[index]
-        })),
-        order: {
-          sourceChain: order.source_chain,
-          destChain: order.dest_chain,
-          sourceAmount: order.source_amount,
-          destAmount: order.dest_amount,
-          sourceToken: order.source_token,
-          destToken: order.dest_token
-        }
-      }
+      data: orderStatus
     });
   } catch (error) {
-    Logger.error('Failed to get swap status', error);
+    Logger.error('Failed to get order status', error);
     res.status(500).json({ 
-      error: 'Failed to get swap status',
+      error: 'Failed to get order status',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
 
-
-router.get('/transactions/:swapId', async (req, res) => {
+router.get('/orders', async (req, res) => {
   try {
-    const { swapId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
     
-    const swap = await SwapModel.findById(swapId);
-    if (!swap) {
-      return res.status(404).json({ 
-        error: 'Swap not found' 
-      });
-    }
-
-    const transactions = await TransactionModel.findBySwapId(swapId);
+    const orders = await FusionOrderService.listOrders(limit, offset);
     
-    const detailedTransactions = await Promise.all(
-      transactions.map(async (tx) => {
-        let blockchainDetails = null;
-        
-        if (tx.tx_hash) {
-          if (tx.chain === 'ethereum') {
-            blockchainDetails = await BlockchainService.getEthereumTransaction(tx.tx_hash);
-          } else if (tx.chain === 'tezos') {
-            blockchainDetails = await BlockchainService.getTezosTransaction(tx.tx_hash);
-          }
-        }
-
-        return {
-          ...tx,
-          blockchainDetails
-        };
-      })
-    );
-
     res.json({
       success: true,
-      data: detailedTransactions
+      data: orders
     });
   } catch (error) {
-    Logger.error('Failed to get transaction history', error);
+    Logger.error('Failed to list orders', error);
     res.status(500).json({ 
-      error: 'Failed to get transaction history',
+      error: 'Failed to list orders',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
