@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Shield, CheckCircle2, Clock, AlertCircle, Copy, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface HTLCStep {
@@ -67,36 +66,25 @@ export default function HTLCStatus() {
   const getStepIcon = (step: HTLCStep) => {
     switch (step.status) {
       case "completed":
-        return <CheckCircle2 className="w-5 h-5 text-green-500" />
+        return <span className="text-green-500 text-xl">✓</span>
       case "active":
-        return <Clock className="w-5 h-5 text-blue-500 animate-pulse" />
+        return <span className="text-blue-500 text-xl animate-pulse">●</span>
       default:
-        return <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30"></div>
+        return <div className="w-5 h-5 rounded-full border-2 border-slate-400 dark:border-slate-500"></div>
     }
   }
 
   return (
     <div className="w-full">
       <div className="bg-card/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-border/30 overflow-hidden relative group">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/10 pointer-events-none"></div>
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-          <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl animate-pulse delay-1000"></div>
-        </div>
 
         <div className="relative p-8">
           <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-500/20 rounded-xl relative overflow-hidden group/icon">
-                <div className="absolute inset-0 bg-blue-500/30 scale-0 group-hover/icon:scale-100 transition-transform duration-300 rounded-xl"></div>
-                <Shield className="w-6 h-6 text-blue-500 relative z-10" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-card-foreground">HTLC Cross-Chain Status</h2>
-                <p className="text-sm text-muted-foreground">Hash Time Locked Contract Progress</p>
-              </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">HTLC Cross-Chain Status</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Hash Time Locked Contract Progress</p>
             </div>
-            <div className="flex items-center gap-3 px-4 py-2 bg-blue-500/10 rounded-full">
+            <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-full">
               <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
               <span className="text-sm font-medium text-blue-600 dark:text-blue-400">ACTIVE</span>
             </div>
@@ -104,23 +92,22 @@ export default function HTLCStatus() {
 
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-lg font-medium text-muted-foreground">Overall Progress</span>
-              <span className="text-lg font-bold text-card-foreground">{Math.round(progress)}%</span>
+              <span className="text-lg font-medium text-slate-600 dark:text-slate-400">Overall Progress</span>
+              <span className="text-lg font-bold text-slate-900 dark:text-slate-100">{Math.round(progress)}%</span>
             </div>
-            <div className="w-full bg-muted/30 rounded-full h-4 overflow-hidden">
+            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-4 overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
+                className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
                 style={{ width: `${progress}%` }}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent animate-pulse"></div>
               </div>
             </div>
           </div>
 
           <div className="relative mb-10">
-            <div className="absolute top-8 left-0 right-0 h-1 bg-border/30 rounded-full"></div>
+            <div className="absolute top-8 left-0 right-0 h-1 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
             <div 
-              className="absolute top-8 left-0 h-1 bg-gradient-to-r from-green-500 to-blue-500 rounded-full transition-all duration-1000 ease-out"
+              className="absolute top-8 left-0 h-1 bg-blue-500 rounded-full transition-all duration-1000 ease-out"
               style={{ width: `${(currentStep / steps.length) * 100}%` }}
             ></div>
             
@@ -129,12 +116,12 @@ export default function HTLCStatus() {
                 <div key={step.id} className="flex flex-col items-center text-center" style={{ minWidth: '160px' }}>
                   <div
                     className={cn(
-                      "w-16 h-16 rounded-full border-4 bg-card flex items-center justify-center mb-4 transition-all duration-300 relative z-10",
+                      "w-16 h-16 rounded-full border-4 bg-white dark:bg-slate-800 flex items-center justify-center mb-4 transition-all duration-300 relative z-10",
                       step.status === "completed"
-                        ? "border-green-500 bg-green-500/10"
+                        ? "border-green-500 bg-green-50 dark:bg-green-900/20"
                         : step.status === "active"
-                          ? "border-blue-500 bg-blue-500/10 animate-pulse"
-                          : "border-border/50 bg-muted/30",
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 animate-pulse"
+                          : "border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700",
                     )}
                   >
                     {getStepIcon(step)}
@@ -145,15 +132,15 @@ export default function HTLCStatus() {
                       "text-sm font-semibold",
                       step.status === "completed" ? "text-green-600 dark:text-green-400" :
                       step.status === "active" ? "text-blue-600 dark:text-blue-400" :
-                      "text-muted-foreground"
+                      "text-slate-600 dark:text-slate-400"
                     )}>
                       {step.title}
                     </h3>
-                    <p className="text-sm text-muted-foreground leading-tight">
+                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-tight">
                       {step.description}
                     </p>
                     {step.timestamp && (
-                      <span className="text-sm text-muted-foreground/70 block">
+                      <span className="text-sm text-slate-500 dark:text-slate-500 block">
                         {step.timestamp}
                       </span>
                     )}
@@ -174,78 +161,68 @@ export default function HTLCStatus() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="p-6 bg-muted/20 rounded-xl border border-border/30">
-              <h4 className="font-semibold text-card-foreground mb-4 flex items-center gap-2">
-                <Shield className="w-4 h-4" />
+            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+              <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">
                 Transaction Details
               </h4>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Contract Address</span>
+                  <span className="text-slate-600 dark:text-slate-400">Contract Address</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-card-foreground">0x1234...5678</span>
-                    <button className="text-muted-foreground hover:text-card-foreground transition-colors">
-                      <Copy className="w-3 h-3" />
+                    <span className="font-mono text-slate-900 dark:text-slate-100">0x1234...5678</span>
+                    <button className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors text-xs">
+                      Copy
                     </button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Hash Lock</span>
+                  <span className="text-slate-600 dark:text-slate-400">Hash Lock</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-card-foreground">0xabcd...efgh</span>
-                    <button className="text-muted-foreground hover:text-card-foreground transition-colors">
-                      <Copy className="w-3 h-3" />
+                    <span className="font-mono text-slate-900 dark:text-slate-100">0xabcd...efgh</span>
+                    <button className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors text-xs">
+                      Copy
                     </button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Time Lock</span>
-                  <span className="text-card-foreground">24 hours</span>
+                  <span className="text-slate-600 dark:text-slate-400">Time Lock</span>
+                  <span className="text-slate-900 dark:text-slate-100">24 hours</span>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 bg-muted/20 rounded-xl border border-border/30">
-              <h4 className="font-semibold text-card-foreground mb-4">Actions</h4>
+            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+              <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">Actions</h4>
               <div className="flex flex-col gap-3">
                 <button
                   disabled={currentStep < 4}
                   className={cn(
-                    "py-3 px-4 rounded-xl font-medium transition-all duration-300 relative overflow-hidden group/button",
+                    "py-3 px-4 rounded-xl font-medium transition-all duration-300",
                     currentStep >= 4
-                      ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
-                      : "bg-muted text-muted-foreground cursor-not-allowed",
+                      ? "bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                      : "bg-slate-300 dark:bg-slate-600 text-slate-500 dark:text-slate-400 cursor-not-allowed",
                   )}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover/button:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center justify-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Claim</span>
-                  </div>
+                  <span>Claim</span>
                 </button>
 
                 <button
                   disabled={currentStep >= 4}
                   className={cn(
-                    "py-3 px-4 rounded-xl font-medium transition-all duration-300 relative overflow-hidden group/button",
+                    "py-3 px-4 rounded-xl font-medium transition-all duration-300",
                     currentStep < 4
-                      ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
-                      : "bg-muted text-muted-foreground cursor-not-allowed",
+                      ? "bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                      : "bg-slate-300 dark:bg-slate-600 text-slate-500 dark:text-slate-400 cursor-not-allowed",
                   )}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover/button:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center justify-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>Refund</span>
-                  </div>
+                  <span>Refund</span>
                 </button>
               </div>
             </div>
 
-            <div className="p-6 bg-muted/20 rounded-xl border border-border/30">
-              <h4 className="font-semibold text-card-foreground mb-4">Explorer</h4>
-              <button className="w-full py-3 px-4 text-sm text-muted-foreground hover:text-card-foreground border border-border/30 hover:border-primary/30 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 group/explorer">
-                <ExternalLink className="w-4 h-4 group-hover/explorer:scale-110 transition-transform" />
+            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+              <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">Explorer</h4>
+              <button className="w-full py-3 px-4 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 rounded-xl transition-all duration-300">
                 <span>View on Block Explorer</span>
               </button>
             </div>

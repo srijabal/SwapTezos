@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Clock, TrendingUp, Users, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface Bid {
@@ -38,28 +37,17 @@ export default function AuctionTimer() {
   return (
     <div className="w-full">
       <div className="bg-card/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-border/30 overflow-hidden relative group">
-        {/* Animated Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-red-500/10 pointer-events-none"></div>
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl animate-pulse"></div>
-        </div>
 
         {/* Header */}
         <div className="relative p-6 pb-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-orange-500/20 rounded-xl relative overflow-hidden group/icon">
-                <div className="absolute inset-0 bg-orange-500/30 scale-0 group-hover/icon:scale-100 transition-transform duration-300 rounded-xl"></div>
-                <Clock className="w-5 h-5 text-orange-500 relative z-10" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-card-foreground">Auction Status</h2>
-                <p className="text-xs text-muted-foreground">Live bidding session</p>
-              </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Auction Status</h2>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Live bidding session</p>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 rounded-full">
-              <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-              <span className="text-xs font-medium text-orange-600 dark:text-orange-400">LIVE</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-full">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <span className="text-xs font-medium text-red-600 dark:text-red-400">LIVE</span>
             </div>
           </div>
         </div>
@@ -68,21 +56,20 @@ export default function AuctionTimer() {
           {/* Timer Display */}
           <div className="text-center mb-6">
             <div className="relative inline-block">
-              <div className="text-5xl font-mono font-bold text-card-foreground mb-2 relative">
+              <div className="text-5xl font-mono font-bold text-slate-900 dark:text-slate-100 mb-2 relative">
                 <span className="inline-block animate-pulse">{String(timeLeft.minutes).padStart(2, "0")}</span>
                 <span className="mx-2 animate-pulse">:</span>
                 <span className="inline-block animate-pulse">{String(timeLeft.seconds).padStart(2, "0")}</span>
               </div>
-              <p className="text-sm text-muted-foreground">Time remaining</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Time remaining</p>
             </div>
 
             {/* Progress Bar */}
-            <div className="mt-4 w-full bg-muted/30 rounded-full h-2 overflow-hidden">
+            <div className="mt-4 w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-orange-500 to-red-500 rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+                className="h-full bg-red-500 rounded-full transition-all duration-1000 ease-out"
                 style={{ width: `${progress}%` }}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent animate-pulse"></div>
               </div>
             </div>
           </div>
@@ -90,12 +77,10 @@ export default function AuctionTimer() {
           {/* Current Bids */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
-                <TrendingUp className="w-4 h-4" />
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                 Current Bids
               </h3>
-              <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                <Users className="w-4 h-4" />
+              <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
                 <span>{bids.length} bidders</span>
               </div>
             </div>
@@ -107,8 +92,8 @@ export default function AuctionTimer() {
                   className={cn(
                     "flex items-center justify-between p-3 rounded-xl border transition-all duration-300 hover:scale-[1.02] group/bid",
                     index === 0
-                      ? "bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20"
-                      : "bg-muted/30 border-border/30 hover:border-primary/30",
+                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                      : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600",
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -116,37 +101,33 @@ export default function AuctionTimer() {
                       className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold",
                         index === 0
-                          ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white"
-                          : "bg-muted text-muted-foreground",
+                          ? "bg-green-500 text-white"
+                          : "bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300",
                       )}
                     >
                       #{index + 1}
                     </div>
                     <div>
-                      <p className="font-medium text-card-foreground">{bid.bidder}</p>
-                      <p className="text-xs text-muted-foreground">{bid.timestamp}</p>
+                      <p className="font-medium text-slate-900 dark:text-slate-100">{bid.bidder}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">{bid.timestamp}</p>
                     </div>
                   </div>
 
                   <div className="text-right">
                     <div className="flex items-center gap-1">
-                      <span className="text-lg font-bold text-card-foreground">{bid.amount}</span>
-                      <span className="text-sm text-muted-foreground">ETH</span>
-                      {index === 0 && <Zap className="w-4 h-4 text-green-500 ml-1" />}
+                      <span className="text-lg font-bold text-slate-900 dark:text-slate-100">{bid.amount}</span>
+                      <span className="text-sm text-slate-600 dark:text-slate-400">ETH</span>
+                      {index === 0 && <span className="text-green-500 ml-1 text-sm">⭐</span>}
                     </div>
-                    <p className="text-xs text-muted-foreground">≈ ${(bid.amount * 2340).toLocaleString()}</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">≈ ${(bid.amount * 2340).toLocaleString()}</p>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Place Bid Button */}
-            <button className="w-full mt-4 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:ring-offset-2 focus:ring-offset-card transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl relative overflow-hidden group/button">
-              <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover/button:opacity-100 transition-opacity duration-300"></div>
-              <div className="relative flex items-center justify-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                <span className="text-lg">Place Bid</span>
-              </div>
+            <button className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl">
+              <span className="text-lg">Place Bid</span>
             </button>
           </div>
         </div>
