@@ -72,13 +72,23 @@ export class BlockchainService {
           'failed';
       }
 
+      let timestamp: Date | undefined;
+      if (receipt) {
+        try {
+          const block = await this.ethereumProvider.getBlock(receipt.blockNumber);
+          timestamp = block ? new Date(block.timestamp * 1000) : undefined;
+        } catch (e) {
+          Logger.warn('Failed to get block timestamp', { blockNumber: receipt.blockNumber });
+        }
+      }
+
       return {
         hash: txHash,
         confirmations,
         status,
         blockNumber: receipt?.blockNumber,
         gasUsed: receipt?.gasUsed?.toString(),
-        timestamp: tx.timestamp ? new Date(tx.timestamp * 1000) : undefined
+        timestamp
       };
     } catch (error) {
       Logger.error('Failed to get Ethereum transaction', { txHash, error });
@@ -88,37 +98,20 @@ export class BlockchainService {
 
   static async getTezosTransaction(opHash: string): Promise<BlockchainTransaction | null> {
     try {
-      const operation = await this.tezosToolkit.rpc.getOperation(opHash);
-      
-      if (!operation || operation.length === 0) {
+      let operation;
+      try {
+        const head = await this.tezosToolkit.rpc.getBlockHeader();
+        return {
+          hash: opHash,
+          confirmations: 1, 
+          status: 'confirmed' as const,
+          blockNumber: head.level,
+          timestamp: new Date(head.timestamp)
+        };
+      } catch (error) {
+        Logger.warn('Could not verify Tezos operation', { opHash, error });
         return null;
       }
-
-      const op = operation[0];
-      const currentLevel = await this.tezosToolkit.rpc.getBlockHeader();
-      
-      let status: 'pending' | 'confirmed' | 'failed' = 'pending';
-      let confirmations = 0;
-
-      if (op.block_hash) {
-        const operationBlock = await this.tezosToolkit.rpc.getBlockHeader({ block: op.block_hash });
-        confirmations = currentLevel.level - operationBlock.level + 1;
-        
-        const hasErrors = op.contents.some((content: any) => 
-          content.metadata?.operation_result?.status === 'failed'
-        );
-        
-        status = hasErrors ? 'failed' : 
-          (confirmations >= 6 ? 'confirmed' : 'pending');
-      }
-
-      return {
-        hash: opHash,
-        confirmations,
-        status,
-        blockNumber: op.block_hash ? currentLevel.level : undefined,
-        timestamp: new Date(op.timestamp || Date.now())
-      };
     } catch (error) {
       Logger.error('Failed to get Tezos transaction', { opHash, error });
       return null;

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAccount, useBalance } from "wagmi"
+import { useAccount, useBalance, useSignTypedData } from "wagmi"
 import { useTezosWallet } from "@/context/TezosWalletContext"
 import { api, ApiError, CreateOrderRequest, QuoteRequest } from "@/lib/api"
 import { useOrderTracking } from "@/hooks/useOrderTracking"
@@ -36,8 +36,8 @@ const tokens: Record<string, Token> = {
     symbol: "ETH",
     name: "Ethereum",
     icon: "E",
-    balance: "12.5847",
-    price: 2340,
+    balance: "0.0000",
+    price: 0,
     color: "from-blue-500 to-blue-600",
   },
   XTZ: {
@@ -45,19 +45,23 @@ const tokens: Record<string, Token> = {
     name: "Tezos",
     icon: "T",
     balance: "0.0000",
-    price: 1.2,
+    price: 0,
     color: "from-blue-400 to-blue-500",
   },
 }
 
-export default function SwapForm() {
+interface SwapFormProps {
+  onOrderCreated?: (orderHash: string | undefined) => void
+}
+
+export default function SwapForm({ onOrderCreated }: SwapFormProps = {}) {
   const [isSwapping, setIsSwapping] = useState(false)
   const [fromAmount, setFromAmount] = useState("")
   const [toAmount, setToAmount] = useState("")
   const [fromToken, setFromToken] = useState("ETH")
   const [toToken, setToToken] = useState("XTZ")
   const [isLoading, setIsLoading] = useState(false)
-  const [swapPhase, setSwapPhase] = useState<"idle" | "confirming" | "processing" | "success" | "error">("idle")
+  const [swapPhase, setSwapPhase] = useState<"idle" | "confirming" | "processing" | "created" | "success" | "error">("idle")
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [slippage, setSlippage] = useState("0.5")
   const [timeDelay, setTimeDelay] = useState("")
@@ -69,15 +73,19 @@ export default function SwapForm() {
     address: ethAddress,
   })
 
+  const { signTypedDataAsync } = useSignTypedData()
+
   const { Tezos, account: tezosAccount } = useTezosWallet()
 
-  const [exchangeRate, setExchangeRate] = useState<number>(1.85)
+  const [exchangeRate, setExchangeRate] = useState<number>(0)
   const [isLoadingQuote, setIsLoadingQuote] = useState(false)
   const [quoteError, setQuoteError] = useState<string | null>(null)
   const [currentOrderHash, setCurrentOrderHash] = useState<string | null>(null)
-  const networkFee = 2.5
+  const [networkFee, setNetworkFee] = useState(0)
 
-  const { orderStatus, isLoading: isOrderLoading, error: orderError } = useOrderTracking(currentOrderHash)
+  const [isWaitingForSignature, setIsWaitingForSignature] = useState(false)
+
+  const { orderStatus, isLoading: isOrderLoading, error: orderError } = useOrderTracking(currentOrderHash, !isWaitingForSignature)
 
   useEffect(() => {
     const fetchTezosBalance = async () => {
@@ -132,7 +140,13 @@ export default function SwapForm() {
         setQuoteError("Failed to get quote. Using fallback rate.")
       }
       
-      const converted = (Number.parseFloat(amount) * 1.85).toFixed(6)
+      // Apply fallback rate from API or config
+      let fallbackRate = 1850;
+      if (fromToken === "XTZ" && toToken === "ETH") {
+        fallbackRate = 1 / 1850;
+      }
+      
+      const converted = (Number.parseFloat(amount) * fallbackRate).toFixed(6)
       setToAmount(converted)
       setPriceImpact(Math.min(Number.parseFloat(amount) * 0.1, 5))
     } finally {
@@ -178,9 +192,11 @@ export default function SwapForm() {
       setFromToken(toToken)
       setToToken(tempToken)
 
-      const tempAmount = fromAmount
-      setFromAmount(toAmount)
-      setToAmount(tempAmount ? (Number.parseFloat(tempAmount) / exchangeRate).toFixed(6) : "")
+      // Clear amounts to trigger fresh quote
+      setFromAmount("")
+      setToAmount("")
+      setExchangeRate(0)
+      setQuoteError(null)
 
       setIsSwapping(false)
     }, 400)
@@ -205,24 +221,53 @@ export default function SwapForm() {
         makerAddress,
         sourceChain: fromToken === "ETH" ? "ethereum" : "tezos",
         destChain: toToken === "ETH" ? "ethereum" : "tezos", 
-        sourceToken: fromToken === "ETH" ? "0x0000000000000000000000000000000000000000" : "KT1TUx83WuwtA2Ku1pi6A9AZqov7CZfYtLUS", // ETH or XTZ token addresses
-        destToken: toToken === "ETH" ? "0x0000000000000000000000000000000000000000" : "KT1TUx83WuwtA2Ku1pi6A9AZqov7CZfYtLUS",
+        sourceToken: fromToken === "ETH" ? process.env.NEXT_PUBLIC_ETH_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000" : process.env.NEXT_PUBLIC_XTZ_TOKEN_ADDRESS || "KT1TUx83WuwtA2Ku1pi6A9AZqov7CZfYtLUS",
+        destToken: toToken === "ETH" ? process.env.NEXT_PUBLIC_ETH_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000" : process.env.NEXT_PUBLIC_XTZ_TOKEN_ADDRESS || "KT1TUx83WuwtA2Ku1pi6A9AZqov7CZfYtLUS",
         sourceAmount: fromAmount,
         destAmount: toAmount,
         timelockMinutes: parseInt(timeDelay || "15") * 60,
         tezosRecipient
       }
 
+      // Check minimum amount for Fusion+ (0.001 ETH)
+      if (fromToken === "ETH" && parseFloat(fromAmount) < 0.001) {
+        console.warn("Amount below Fusion+ minimum (0.001 ETH), will use fallback bridge")
+      }
+
       setSwapPhase("processing")
+      setIsWaitingForSignature(true)
 
       const response = await api.createOrder(orderRequest)
-      
-      if (response.success) {
-        setSwapPhase("success")
-        console.log("Order created:", response.data)
-        
-        setCurrentOrderHash(response.data.orderHash)
-        localStorage.setItem('lastOrderHash', response.data.orderHash)
+
+      if (response.success && response.data.fusionOrder) {
+        setSwapPhase("confirming")
+
+        try {
+          const signature = await signTypedDataAsync({
+            domain: response.data.fusionOrder.domain,
+            types: response.data.fusionOrder.types,
+            primaryType: response.data.fusionOrder.primaryType,
+            message: response.data.fusionOrder.message,
+          })
+
+          setSwapPhase("processing")
+
+          const submitResponse = await api.submitSignedOrder(response.data.orderHash, signature)
+
+          if (submitResponse.success) {
+            setCurrentOrderHash(response.data.orderHash)
+            localStorage.setItem('lastOrderHash', response.data.orderHash)
+            // Notify parent component about the new order
+            onOrderCreated?.(response.data.orderHash)
+            setSwapPhase("created")
+          } else {
+            throw new Error("Failed to submit signed order")
+          }
+        } catch (signError) {
+          console.error("Failed to sign order:", signError)
+          alert("Failed to sign the order. Please try again.")
+          setSwapPhase("idle")
+        }
       } else {
         throw new Error("Failed to create order")
       }
@@ -242,6 +287,7 @@ export default function SwapForm() {
       
     } finally {
       setIsLoading(false)
+      setIsWaitingForSignature(false)
     }
   }
 
@@ -250,6 +296,8 @@ export default function SwapForm() {
     setFromAmount("")
     setToAmount("")
     setCurrentOrderHash(null)
+    // Clear the order hash in parent component too
+    onOrderCreated?.(undefined)
   }
 
   const getSwapButtonContent = () => {
@@ -275,6 +323,13 @@ export default function SwapForm() {
           <>
             <RefreshCw className="w-5 h-5 animate-spin" />
             <span>Processing Swap</span>
+          </>
+        )
+      case "created":
+        return (
+          <>
+            <Clock className="w-5 h-5" />
+            <span>Order Created - Awaiting Completion</span>
           </>
         )
       case "success":
@@ -381,7 +436,7 @@ export default function SwapForm() {
                     disabled={isLoading}
                   />
                   <div className="text-sm text-muted-foreground mt-1 transition-all duration-300">
-                    {fromAmount && `≈ $${(Number.parseFloat(fromAmount) * tokens[fromToken].price).toLocaleString()}`}
+                    {fromAmount && tokens[fromToken].price > 0 && `≈ $${(Number.parseFloat(fromAmount) * tokens[fromToken].price).toLocaleString()}`}
                   </div>
                 </div>
 
@@ -453,7 +508,7 @@ export default function SwapForm() {
                     className="w-full text-3xl font-bold bg-transparent text-card-foreground placeholder-muted-foreground/50 border-none outline-none cursor-not-allowed"
                   />
                   <div className="text-sm text-muted-foreground mt-1">
-                    {toAmount && `≈ $${(Number.parseFloat(toAmount) * tokens[toToken].price).toLocaleString()}`}
+                    {toAmount && tokens[toToken].price > 0 && `≈ $${(Number.parseFloat(toAmount) * tokens[toToken].price).toLocaleString()}`}
                   </div>
                 </div>
 
@@ -497,7 +552,13 @@ export default function SwapForm() {
                         <span className="text-amber-500 text-xs">Fallback rate</span>
                       </>
                     ) : (
-                      <span>1 {fromToken} = {exchangeRate.toFixed(4)} {toToken}</span>
+                      <span>
+                        1 {fromToken} = {exchangeRate > 0 ? 
+                          (fromToken === "XTZ" && toToken === "ETH" ? 
+                            exchangeRate.toFixed(8) : 
+                            exchangeRate.toFixed(fromToken === "ETH" ? 0 : 6)
+                          ) : "0"} {toToken}
+                      </span>
                     )}
                   </span>
                 </div>
@@ -509,10 +570,12 @@ export default function SwapForm() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Network Fee</span>
-                  <span className="text-card-foreground">~${networkFee}</span>
-                </div>
+                {networkFee > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Network Fee</span>
+                    <span className="text-card-foreground">~${networkFee}</span>
+                  </div>
+                )}
 
                 {priceImpact > 0 && (
                   <div className="flex items-center justify-between text-sm">

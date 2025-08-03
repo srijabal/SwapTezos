@@ -54,6 +54,31 @@ export interface CreateOrderResponse {
   };
 }
 
+export interface CrossChainSwapRequest {
+  makerAddress: string;
+  tezosRecipient: string;
+  sourceChain: 'ethereum' | 'tezos';
+  destChain: 'ethereum' | 'tezos';
+  sourceToken: string;
+  destToken: string;
+  sourceAmount: string;
+  destAmount: string;
+  timelockHours: number;
+}
+
+export interface CrossChainSwapResponse {
+  success: boolean;
+  data: {
+    swapId: string;
+    secretHash: string;
+    ethereumSwapId?: number;
+    tezosSwapId?: number;
+    fusionOrderHash?: string;
+    status: string;
+    expirationTime: string;
+  };
+}
+
 // API Client Class
 class ApiClient {
   private baseUrl: string;
@@ -127,6 +152,13 @@ class ApiClient {
     });
   }
 
+  async submitSignedOrder(orderHash: string, signature: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/fusion/orders/${orderHash}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ signature }),
+    });
+  }
+
   // Quote Management
   async getQuote(quoteData: QuoteRequest): Promise<QuoteResponse> {
     return this.request<QuoteResponse>('/api/fusion/quote', {
@@ -146,6 +178,29 @@ class ApiClient {
 
   async getOrdersList(limit = 50, offset = 0): Promise<any> {
     return this.request<any>(`/api/status/orders?limit=${limit}&offset=${offset}`);
+  }
+
+  // Cross-chain swap operations
+  async createCrossChainSwap(swapData: CrossChainSwapRequest): Promise<CrossChainSwapResponse> {
+    return this.request<CrossChainSwapResponse>('/api/cross-chain/swaps', {
+      method: 'POST',
+      body: JSON.stringify(swapData),
+    });
+  }
+
+  async getCrossChainSwapStatus(swapId: string): Promise<any> {
+    return this.request<any>(`/api/cross-chain/swaps/${swapId}`);
+  }
+
+  async claimCrossChainSwap(swapId: string, secret: string): Promise<any> {
+    return this.request<any>(`/api/cross-chain/swaps/${swapId}/claim`, {
+      method: 'POST',
+      body: JSON.stringify({ secret }),
+    });
+  }
+
+  async listCrossChainSwaps(limit = 50, offset = 0): Promise<any> {
+    return this.request<any>(`/api/cross-chain/swaps?limit=${limit}&offset=${offset}`);
   }
 
   // Resolver Operations (for advanced users)

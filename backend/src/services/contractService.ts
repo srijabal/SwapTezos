@@ -62,7 +62,7 @@ export class ContractService {
       Logger.info('Initializing contract services...');
       
       const ethereumAddress = process.env.ETHEREUM_HTLC_ADDRESS;
-      if (ethereumAddress) {
+      if (ethereumAddress && ethereumWallet) {
         this.ethereumContract = new ethers.Contract(
           ethereumAddress,
           ETHEREUM_HTLC_ABI,
@@ -70,7 +70,7 @@ export class ContractService {
         );
         Logger.info('Ethereum HTLC contract initialized', { address: ethereumAddress });
       } else {
-        Logger.warn('Ethereum HTLC contract address not configured');
+        Logger.warn('Ethereum HTLC contract address or private key not configured');
       }
 
       const tezosAddress = process.env.TEZOS_HTLC_ADDRESS;

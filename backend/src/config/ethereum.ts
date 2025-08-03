@@ -12,7 +12,6 @@ export const ethereumConfig = {
 
 export const ethereumProvider = new ethers.JsonRpcProvider(ethereumConfig.rpcUrl);
 
-export const ethereumWallet = new ethers.Wallet(
-  ethereumConfig.privateKey,
-  ethereumProvider
-); 
+export const ethereumWallet = ethereumConfig.privateKey 
+  ? new ethers.Wallet(ethereumConfig.privateKey, ethereumProvider)
+  : null; 

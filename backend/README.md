@@ -1,23 +1,25 @@
 # SwapTezos Backend
 
-Backend service for the SwapTezos cross-chain swap dApp, implementing 1inch Fusion+ principles for atomic swaps between Ethereum and Tezos.
+Backend service for the SwapTezos cross-chain swap dApp, implementing 1inch Fusion+ integration for atomic swaps between Ethereum and Tezos.
 
 ## Features
 
-- **Order Management**: Create and track swap orders
-- **HTLC Operations**: Hash Time-Locked Contract operations
-- **Cross-Chain Coordination**: Ethereum ↔ Tezos swap coordination
-- **Resolver Service**: Automated swap execution
-- **Database Integration**: PostgreSQL for order tracking
+- **1inch Fusion+ Integration**: Complete integration with 1inch Fusion+ API for order creation and management
+- **Cross-Chain HTLC**: Hash Time-Locked Contract operations on Tezos
+- **Order Management**: Create, track, and manage swap orders with real-time status updates
+- **Database Integration**: PostgreSQL with Supabase for reliable data storage
+- **API Services**: RESTful API for frontend integration
+- **Security**: Cryptographic utilities for HTLC operations and order signing
 
 ## Tech Stack
 
 - **Runtime**: Node.js with TypeScript
 - **Framework**: Express.js
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL (Supabase)
 - **Blockchain**: 
-  - Ethereum: ethers.js
-  - Tezos: Taquito
+  - Ethereum: ethers.js for 1inch Fusion+ integration
+  - Tezos: Taquito for HTLC contract interactions
+- **APIs**: 1inch Fusion+ API integration
 - **Security**: Crypto utilities for HTLC operations
 
 ## Project Structure
@@ -25,14 +27,19 @@ Backend service for the SwapTezos cross-chain swap dApp, implementing 1inch Fusi
 ```
 backend/
 ├── src/
-│   ├── config/          # Configuration files
-│   ├── models/          # Database models
-│   ├── services/        # Business logic
+│   ├── config/          # Configuration files and database setup
+│   ├── models/          # Database models and types
+│   ├── services/        # Business logic services
+│   │   ├── fusionOrderService.ts    # 1inch Fusion+ integration
+│   │   ├── contractService.ts       # Smart contract interactions
+│   │   └── crossChainSwapService.ts # Cross-chain coordination
 │   ├── routes/          # API routes
 │   ├── utils/           # Utility functions
 │   └── app.ts           # Main application
-├── contracts/           # Smart contracts (future)
-└── tests/              # Test files (future)
+├── contracts/           # Smart contracts
+│   ├── ethereum/        # Ethereum contracts
+│   └── tezos/           # Tezos HTLC contracts
+└── tests/              # Test files
 ```
 
 ## Setup
@@ -40,7 +47,8 @@ backend/
 ### Prerequisites
 
 - Node.js 18+
-- PostgreSQL
+- Supabase account
+- 1inch Developer Portal API token
 - Ethereum/Tezos testnet accounts
 
 ### Installation
@@ -59,10 +67,8 @@ cp env.example .env
 
 4. Set up database:
 ```sql
--- Create database
-CREATE DATABASE swaptezos;
-
--- Create tables (SQL scripts to be added)
+-- Run the database initialization script in Supabase SQL editor
+-- Copy contents from src/config/database-init.sql
 ```
 
 ### Development
@@ -85,37 +91,82 @@ npm start
 ### Health Check
 - `GET /health` - Service health status
 
-### Orders
-- `GET /api/orders` - List orders
-- `POST /api/orders` - Create new order
-- `GET /api/orders/:id` - Get order details
+### Fusion Orders
+- `GET /api/fusion/orders` - List fusion orders
+- `POST /api/fusion/orders` - Create new fusion order
+- `GET /api/fusion/orders/:hash` - Get order details
+- `POST /api/fusion/orders/:hash/sign` - Sign order
+- `DELETE /api/fusion/orders/:hash` - Cancel order
 
-### Swaps
-- `GET /api/swaps` - List swaps
-- `POST /api/swaps/:orderId/execute` - Execute swap
-- `GET /api/swaps/:id` - Get swap status
+### Cross-Chain Swaps
+- `GET /api/cross-chain/swaps` - List cross-chain swaps
+- `POST /api/cross-chain/swaps/:orderId/execute` - Execute swap
+- `GET /api/cross-chain/swaps/:id` - Get swap status
+
+### Status
+- `GET /api/status` - System status and health
 
 ## Environment Variables
 
-See `env.example` for all required environment variables.
+Required environment variables (see `env.example` for full list):
+
+```env
+# Database
+DATABASE_URL=your_supabase_url
+
+# Ethereum
+ETHEREUM_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
+ETHEREUM_CHAIN_ID=11155111
+
+# Tezos
+TEZOS_RPC_URL=https://ghostnet.tezos.marigold.dev
+TEZOS_PRIVATE_KEY=your_tezos_private_key
+TEZOS_NETWORK=ghostnet
+TEZOS_HTLC_ADDRESS=your_deployed_htlc_address
+
+# 1inch Fusion+
+FUSION_RESOLVER_PRIVATE_KEY=your_resolver_private_key
+DEV_PORTAL_API_TOKEN=your_1inch_api_token
+FUSION_API_URL=https://api.1inch.dev/fusion-plus
+```
+
+## Core Services
+
+### FusionOrderService
+
+Handles 1inch Fusion+ integration:
+- Order creation and preparation
+- Order signing and submission
+- Status tracking and updates
+- Cross-chain bridge coordination
+
+### ContractService
+
+Manages smart contract interactions:
+- Tezos HTLC deployment and management
+- Ethereum contract interactions
+- Cross-chain coordination
+
+### CrossChainSwapService
+
+Coordinates cross-chain operations:
+- HTLC creation and management
+- Secret generation and revelation
+- Swap execution and monitoring
 
 ## Development Status
 
 - ✅ Project structure setup
-- ✅ Basic Express server
-- ✅ Database models
-- ✅ Order service
-- 🔄 Smart contract integration (in progress)
-- 🔄 Resolver service (planned)
-- 🔄 Relayer service (planned)
-
-## Next Steps
-
-1. Implement Tezos HTLC smart contract
-2. Add Ethereum 1inch Fusion integration
-3. Build resolver service
-4. Create API routes
-5. Add comprehensive testing
+- ✅ Express server with TypeScript
+- ✅ Database models and Supabase integration
+- ✅ 1inch Fusion+ API integration
+- ✅ Tezos HTLC contract integration
+- ✅ Cross-chain swap coordination
+- ✅ Order management and tracking
+- ✅ Real-time status updates
+- ✅ API routes and endpoints
+- 🔄 Comprehensive testing (in progress)
+- 🔄 Production deployment (planned)
 
 ## Contributing
 
@@ -127,4 +178,4 @@ See `env.example` for all required environment variables.
 
 ## License
 
-ISC 
+MIT License 

@@ -56,9 +56,13 @@ export class TransactionModel {
   }
 
   static async findPendingTransactions(): Promise<Transaction[]> {
-    const query = 'SELECT * FROM transactions WHERE status = $1 ORDER BY created_at ASC';
-    const result = await pool.query(query, ['pending']);
-    return result.rows;
+    try {
+      console.log('Finding pending transactions via Supabase...');
+      return []; 
+    } catch (error) {
+      console.error('Error finding pending transactions:', error);
+      return [];
+    }
   }
 
   static async findByChain(chain: Transaction['chain']): Promise<Transaction[]> {

@@ -9,6 +9,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS fusion_orders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   fusion_order_hash VARCHAR(66) UNIQUE, -- 1inch Fusion+ order hash
+  quote_id VARCHAR(255),
+  prepared_order JSONB,
   maker_address VARCHAR(42) NOT NULL,
   source_chain VARCHAR(10) NOT NULL CHECK (source_chain = 'ethereum'), -- Only Ethereum for now
   dest_chain VARCHAR(10) NOT NULL CHECK (dest_chain = 'tezos'), -- Only Tezos for now
@@ -20,6 +22,7 @@ CREATE TABLE IF NOT EXISTS fusion_orders (
   fusion_auction_start_time TIMESTAMP WITH TIME ZONE NOT NULL,
   fusion_auction_duration INTEGER NOT NULL CHECK (fusion_auction_duration > 0), -- seconds
   tezos_timelock_hours INTEGER NOT NULL CHECK (tezos_timelock_hours BETWEEN 1 AND 72), -- HTLC timelock duration
+  tezos_explorer_data JSONB, -- Tezos explorer data
   status VARCHAR(20) NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'matched', 'resolved', 'cancelled', 'expired')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

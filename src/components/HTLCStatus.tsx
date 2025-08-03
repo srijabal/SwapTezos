@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { api } from "@/lib/api"
 
 interface HTLCStep {
   id: number
@@ -11,57 +12,165 @@ interface HTLCStep {
   timestamp?: string
 }
 
-export default function HTLCStatus() {
-  const [currentStep, setCurrentStep] = useState(2)
-  const [progress, setProgress] = useState(50)
+interface SwapData {
+  id: string
+  status: string
+  orderHash: string
+  fusionSettlementHash?: string
+  tezosHTLCAddress?: string
+  tezosHTLCId?: number
+  secretRevealed?: boolean
+  createdAt: string
+}
 
-  const steps: HTLCStep[] = [
-    {
-      id: 1,
-      title: "Initiate Swap",
-      description: "Swap request created and validated",
-      status: "completed",
-      timestamp: "2 min ago",
-    },
-    {
-      id: 2,
-      title: "HTLC Deployed",
-      description: "Hash Time Locked Contract deployed on both chains",
-      status: "active",
-      timestamp: "In progress",
-    },
-    {
-      id: 3,
-      title: "Funds Locked",
-      description: "Funds secured in smart contracts",
-      status: "pending",
-    },
-    {
-      id: 4,
-      title: "Cross-chain Verification",
-      description: "Verifying transaction on destination chain",
-      status: "pending",
-    },
-    {
-      id: 5,
-      title: "Swap Complete",
-      description: "Funds released to destination wallet",
-      status: "pending",
-    },
-  ]
+interface HTLCStatusProps {
+  orderHash?: string
+}
 
+export default function HTLCStatus({ orderHash }: HTLCStatusProps) {
+  const [currentStep, setCurrentStep] = useState(1)
+  const [progress, setProgress] = useState(0)
+  const [swapData, setSwapData] = useState<SwapData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch swap data
   useEffect(() => {
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev < 100) {
-          return prev + 1
-        }
-        return prev
-      })
-    }, 200)
+    const fetchSwapData = async () => {
+      if (!orderHash) {
+        setLoading(false)
+        setError("No order hash provided")
+        return
+      }
 
-    return () => clearInterval(timer)
-  }, [])
+      try {
+        setLoading(true)
+        const response = await api.getCrossChainSwaps()
+        
+        if (response.success) {
+          // Find swap for this order
+          const swap = response.data.find((s: any) => s.orderHash === orderHash)
+          
+          if (swap) {
+            setSwapData(swap)
+            
+            // Determine current step based on swap status
+            switch (swap.status) {
+              case 'created':
+              case 'initiated':
+                setCurrentStep(1)
+                setProgress(20)
+                break
+              case 'deposited':
+                setCurrentStep(3)
+                setProgress(60)
+                break
+              case 'revealed':
+                setCurrentStep(4)
+                setProgress(80)
+                break
+              case 'claimed':
+              case 'completed':
+                setCurrentStep(5)
+                setProgress(100)
+                break
+              default:
+                setCurrentStep(1)
+                setProgress(20)
+            }
+          } else {
+            setError("No cross-chain swap found for this order")
+          }
+        } else {
+          setError("Failed to fetch swap data")
+        }
+      } catch (err) {
+        console.error("Error fetching swap data:", err)
+        setError("Failed to load swap data")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchSwapData()
+    
+    // Refresh every 15 seconds
+    const interval = setInterval(fetchSwapData, 15000)
+    return () => clearInterval(interval)
+  }, [orderHash])
+
+  const getSteps = (): HTLCStep[] => {
+    const baseSteps = [
+      {
+        id: 1,
+        title: "Order Created",
+        description: "Fusion+ order submitted to 1inch",
+        status: "completed" as const,
+        timestamp: swapData ? new Date(swapData.createdAt).toLocaleString() : undefined,
+      },
+      {
+        id: 2,
+        title: "Auction Active", 
+        description: "Resolvers competing in Dutch auction",
+        status: (currentStep >= 2 ? "completed" : currentStep === 2 ? "active" : "pending") as const,
+      },
+      {
+        id: 3,
+        title: "Funds Locked",
+        description: "Resolver deposits funds on both chains",
+        status: (currentStep >= 3 ? "completed" : currentStep === 3 ? "active" : "pending") as const,
+        timestamp: swapData?.fusionSettlementHash ? "Locked" : undefined,
+      },
+      {
+        id: 4,
+        title: "Cross-chain Verification",
+        description: "Verifying transactions on both chains", 
+        status: (currentStep >= 4 ? "completed" : currentStep === 4 ? "active" : "pending") as const,
+      },
+      {
+        id: 5,
+        title: "Swap Complete",
+        description: "Funds released to destination wallet",
+        status: (currentStep >= 5 ? "completed" : currentStep === 5 ? "active" : "pending") as const,
+        timestamp: swapData?.secretRevealed ? "Completed" : undefined,
+      },
+    ]
+
+    return baseSteps
+  }
+
+  const steps = getSteps()
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="w-full">
+        <div className="bg-card/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-border/30 overflow-hidden relative group">
+          <div className="p-8 text-center">
+            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-slate-600 dark:text-slate-400">Loading cross-chain swap data...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="w-full">
+        <div className="bg-card/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-border/30 overflow-hidden relative group">
+          <div className="p-8 text-center">
+            <div className="w-8 h-8 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-red-500 text-lg">⚠</span>
+            </div>
+            <p className="text-red-600 dark:text-red-400 mb-2">Swap Data Unavailable</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">{error}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const getStepIcon = (step: HTLCStep) => {
     switch (step.status) {
@@ -167,26 +276,61 @@ export default function HTLCStatus() {
               </h4>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Contract Address</span>
+                  <span className="text-slate-600 dark:text-slate-400">Order Hash</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-slate-900 dark:text-slate-100">0x1234...5678</span>
-                    <button className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors text-xs">
+                    <span className="font-mono text-slate-900 dark:text-slate-100">
+                      {orderHash ? `${orderHash.slice(0, 6)}...${orderHash.slice(-4)}` : "N/A"}
+                    </span>
+                    <button 
+                      onClick={() => orderHash && navigator.clipboard.writeText(orderHash)}
+                      className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors text-xs"
+                    >
                       Copy
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Hash Lock</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-slate-900 dark:text-slate-100">0xabcd...efgh</span>
-                    <button className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors text-xs">
-                      Copy
-                    </button>
+                {swapData?.tezosHTLCAddress && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 dark:text-slate-400">Tezos HTLC</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-slate-900 dark:text-slate-100">
+                        {`${swapData.tezosHTLCAddress.slice(0, 6)}...${swapData.tezosHTLCAddress.slice(-4)}`}
+                      </span>
+                      <button 
+                        onClick={() => navigator.clipboard.writeText(swapData.tezosHTLCAddress!)}
+                        className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors text-xs"
+                      >
+                        Copy
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
+                {swapData?.fusionSettlementHash && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 dark:text-slate-400">ETH Settlement</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-slate-900 dark:text-slate-100">
+                        {`${swapData.fusionSettlementHash.slice(0, 6)}...${swapData.fusionSettlementHash.slice(-4)}`}
+                      </span>
+                      <button 
+                        onClick={() => navigator.clipboard.writeText(swapData.fusionSettlementHash!)}
+                        className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors text-xs"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Time Lock</span>
-                  <span className="text-slate-900 dark:text-slate-100">24 hours</span>
+                  <span className="text-slate-600 dark:text-slate-400">Status</span>
+                  <span className={cn(
+                    "text-sm font-medium",
+                    swapData?.status === 'completed' ? "text-green-600 dark:text-green-400" :
+                    swapData?.status === 'deposited' ? "text-blue-600 dark:text-blue-400" :
+                    "text-yellow-600 dark:text-yellow-400"
+                  )}>
+                    {swapData?.status || "Unknown"}
+                  </span>
                 </div>
               </div>
             </div>

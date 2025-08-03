@@ -1,11 +1,35 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import SwapForm from "../../components/SwapForm"
-import AuctionTimer from "../../components/AuctionTimer"
-import HTLCStatus from "../../components/HTLCStatus"
-import EthereumWalletButton from "../../components/EthereumWalletButton"
-import TezosWalletButton from "../../components/TezosWalletButton"
-import ApiStatus from "../../components/ApiStatus"
+import TezosExplorerCard from "../../components/TezosExplorerCard"
 
 export default function SwapPage() {
+  const [currentOrderHash, setCurrentOrderHash] = useState<string | undefined>()
+  const [orderStatus, setOrderStatus] = useState<any>(null)
+
+  // Fetch order status when orderHash changes
+  useEffect(() => {
+    if (!currentOrderHash) return
+
+    const fetchOrderStatus = async () => {
+      try {
+        const response = await fetch(`/api/fusion/orders/${currentOrderHash}`)
+        
+        if (response.ok) {
+          const data = await response.json()
+          setOrderStatus(data.data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch order status:', error)
+      }
+    }
+
+    fetchOrderStatus()
+    const interval = setInterval(fetchOrderStatus, 2000)
+    return () => clearInterval(interval)
+  }, [currentOrderHash])
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background/95 to-primary/5 py-4 px-4 relative overflow-hidden">
       {/* Animated Background Elements */}
@@ -18,71 +42,58 @@ export default function SwapPage() {
       <div className="container mx-auto max-w-7xl relative z-10">
         {/* Header with Wallet Connections */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-sm text-primary mb-4">
+          {/* <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-sm text-primary mb-4">
             <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
             <span className="font-medium">LIVE ON TESTNET</span>
-          </div>
+          </div> */}
           
           <h1 className="text-6xl md:text-7xl font-black bg-gradient-to-r from-primary via-blue-500 to-purple-500 bg-clip-text text-transparent mb-4 tracking-tight">
             SwapTezos
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8 font-medium">
-            The first truly atomic cross-chain swap protocol between Ethereum & Tezos
-          </p>
+                     <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8 font-medium">
+             The first truly atomic cross-chain swap protocol between Ethereum & Tezos
+           </p>
+           
+           
           
-          <div className="flex items-center justify-center gap-4 mb-8">
+          {/* <div className="flex items-center justify-center gap-4 mb-8">
             <div className="flex items-center gap-3 px-6 py-3 bg-card/80 backdrop-blur-xl rounded-2xl border border-border/30 shadow-lg">
               <span className="text-sm font-medium text-muted-foreground">Connect:</span>
               <EthereumWalletButton />
               <div className="w-px h-6 bg-border"></div>
               <TezosWalletButton />
             </div>
-          </div>
+          </div> */}
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
           <div className="xl:col-span-7">
-            <SwapForm />
+            <SwapForm onOrderCreated={setCurrentOrderHash} />
           </div>
 
-          <div className="xl:col-span-5">
-            <AuctionTimer />
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <HTLCStatus />
-        </div>
-
-        {/* Stats Bar */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-card/50 backdrop-blur-xl rounded-2xl border border-border/30 p-6 text-center">
-            <div className="text-2xl font-bold text-primary mb-1">$2.1M</div>
-            <div className="text-sm text-muted-foreground">Total Volume</div>
-          </div>
-          <div className="bg-card/50 backdrop-blur-xl rounded-2xl border border-border/30 p-6 text-center">
-            <div className="text-2xl font-bold text-green-500 mb-1">1,247</div>
-            <div className="text-sm text-muted-foreground">Successful Swaps</div>
-          </div>
-          <div className="bg-card/50 backdrop-blur-xl rounded-2xl border border-border/30 p-6 text-center">
-            <div className="text-2xl font-bold text-blue-500 mb-1">~2.3s</div>
-            <div className="text-sm text-muted-foreground">Avg Settlement</div>
-          </div>
-        </div>
-
-        {/* Footer Info */}
-        <div className="mt-12 text-center">
-          <div className="inline-flex items-center gap-3 px-6 py-3 bg-green-500/10 border border-green-500/20 rounded-full text-sm">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-green-600 dark:text-green-400 font-medium">All systems operational</span>
-            <div className="w-px h-4 bg-green-500/30"></div>
-            <span className="text-muted-foreground">99.9% uptime</span>
-          </div>
+                     <div className="xl:col-span-5">
+             {currentOrderHash ? (
+               <TezosExplorerCard 
+                 orderHash={currentOrderHash}
+                 explorerData={orderStatus?.tezosExplorerData}
+                 status={orderStatus?.status || 'created'}
+               />
+             ) : (
+               <div className="w-full h-64 bg-card/50 backdrop-blur-xl rounded-2xl border border-border/30 shadow-lg flex items-center justify-center">
+                 <div className="text-center">
+                   <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                     <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                     </svg>
+                   </div>
+                   <h3 className="text-lg font-semibold text-foreground mb-2">Ready to Swap</h3>
+                   <p className="text-sm text-muted-foreground">Create a cross-chain swap to see the Tezos explorer</p>
+                 </div>
+               </div>
+             )}
+           </div>
         </div>
       </div>
-
-      {/* API Status Indicator */}
-      <ApiStatus />
     </div>
   )
 }

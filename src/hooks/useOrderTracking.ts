@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { api, OrderStatus, ApiError } from '@/lib/api'
 
-export const useOrderTracking = (orderHash: string | null) => {
+export const useOrderTracking = (orderHash: string | null, skip: boolean = false) => {
   const [orderStatus, setOrderStatus] = useState<OrderStatus | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!orderHash) {
+    if (!orderHash || skip) {
       setOrderStatus(null)
       setError(null)
       return

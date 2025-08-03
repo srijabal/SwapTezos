@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import pool from '../config/database';
+import { supabase, testSupabaseConnection } from '../config/supabase';
 import { Logger } from './logger';
 
 export class DatabaseSetup {
@@ -8,12 +9,13 @@ export class DatabaseSetup {
     try {
       Logger.info('Initializing database schema...');
       
-      const schemaPath = path.join(__dirname, '../config/database-init.sql');
-      const schema = fs.readFileSync(schemaPath, 'utf8');
+      Logger.warn('Database schema initialization requires manual setup in Supabase dashboard');
+      Logger.info('Please run the SQL from src/config/database-init.sql in your Supabase SQL Editor');
+      Logger.info('You can access it at: https://app.supabase.com/project/bnhnhzfdzijhifdsvpux/sql');
       
-      await pool.query(schema);
+      // For now, just log that tables need to be created manually
+      Logger.info('Skipping automatic schema initialization - using Supabase REST API');
       
-      Logger.info('Database schema initialized successfully');
     } catch (error) {
       Logger.error('Failed to initialize database schema', error);
       throw error;
@@ -22,18 +24,24 @@ export class DatabaseSetup {
 
   static async checkDatabaseSchema(): Promise<boolean> {
     try {
-      const query = `
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name IN ('orders', 'swaps', 'transactions')
-      `;
+      // Check for expected Supabase tables
+      const expectedTables = ['fusion_orders', 'cross_chain_swaps', 'order_secrets'];
       
-      const result = await pool.query(query);
-      const expectedTables = ['orders', 'swaps', 'transactions'];
-      const existingTables = result.rows.map(row => row.table_name);
+      for (const table of expectedTables) {
+        const { error } = await supabase.from(table).select('id').limit(1);
+        
+        if (error && error.code === 'PGRST116') {
+          // Table doesn't exist
+          Logger.info(`Table ${table} not found`);
+          return false;
+        } else if (error) {
+          Logger.warn(`Error checking table ${table}:`, error.message);
+        } else {
+          Logger.info(`Table ${table} exists`);
+        }
+      }
       
-      return expectedTables.every(table => existingTables.includes(table));
+      return true;
     } catch (error) {
       Logger.error('Failed to check database schema', error);
       return false;
@@ -41,47 +49,41 @@ export class DatabaseSetup {
   }
 
   static async testConnection(): Promise<boolean> {
-    try {
-      await pool.query('SELECT NOW()');
-      Logger.info('Database connection successful');
-      return true;
-    } catch (error) {
-      Logger.error('Database connection failed', error);
-      return false;
+    let retries = 3;
+    
+    while (retries > 0) {
+      try {
+        // Try Supabase connection first
+        const supabaseConnected = await testSupabaseConnection();
+        if (supabaseConnected) {
+          Logger.info('Supabase connection successful');
+          return true;
+        }
+        
+        // Fallback to direct PostgreSQL connection
+        await pool.query('SELECT NOW()');
+        Logger.info('PostgreSQL connection successful');
+        return true;
+      } catch (error) {
+        retries--;
+        Logger.warn(`Database connection attempt failed (${3 - retries}/3)`, error);
+        
+        if (retries > 0) {
+          Logger.info('Retrying database connection in 2 seconds...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
     }
+    
+    Logger.error('Failed to connect to database after 3 attempts');
+    return false;
   }
 
   static async runMigrations(): Promise<void> {
     try {
       Logger.info('Checking for database migrations...');
-      
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS migrations (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(255) NOT NULL UNIQUE,
-          executed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        )
-      `);
-      
-      const result = await pool.query('SELECT name FROM migrations');
-      const executedMigrations = result.rows.map(row => row.name);
-      
-      const availableMigrations: string[] = [];
-      
-      for (const migration of availableMigrations) {
-        if (!executedMigrations.includes(migration)) {
-          Logger.info(`Running migration: ${migration}`);
-          
-          await pool.query(
-            'INSERT INTO migrations (name) VALUES ($1)',
-            [migration]
-          );
-          
-          Logger.info(`Migration completed: ${migration}`);
-        }
-      }
-      
-      Logger.info('All migrations completed');
+      Logger.info('Using Supabase - migrations should be handled through Supabase dashboard');
+      Logger.info('No migrations to run at this time');
     } catch (error) {
       Logger.error('Failed to run migrations', error);
       throw error;
@@ -96,58 +98,8 @@ export class DatabaseSetup {
 
     try {
       Logger.info('Seeding test data...');
-      
-      const orderCount = await pool.query('SELECT COUNT(*) FROM orders');
-      if (parseInt(orderCount.rows[0].count) > 0) {
-        Logger.info('Test data already exists, skipping seed');
-        return;
-      }
-
-      const testOrders = [
-        {
-          maker_address: '0x1234567890123456789012345678901234567890',
-          source_chain: 'ethereum',
-          dest_chain: 'tezos',
-          source_token: '0x0000000000000000000000000000000000000000',
-          dest_token: 'KT1TUx83WuwtA2Ku1pi6A9AZqov7CZfYtLUS',
-          source_amount: '1.0',
-          dest_amount: '100.0',
-          secret_hash: '0xabc1234567890123456789012345678901234567890123456789012345678901',
-          timelock: new Date(Date.now() + 2 * 60 * 60 * 1000) // 2 hours from now
-        },
-        {
-          maker_address: 'tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb',
-          source_chain: 'tezos',
-          dest_chain: 'ethereum',
-          source_token: 'KT1TUx83WuwtA2Ku1pi6A9AZqov7CZfYtLUS',
-          dest_token: '0x0000000000000000000000000000000000000000',
-          source_amount: '100.0',
-          dest_amount: '1.0',
-          secret_hash: '0xdef4567890123456789012345678901234567890123456789012345678901234',
-          timelock: new Date(Date.now() + 3 * 60 * 60 * 1000) // 3 hours from now
-        }
-      ];
-
-      for (const order of testOrders) {
-        await pool.query(`
-          INSERT INTO orders (
-            maker_address, source_chain, dest_chain, source_token, dest_token,
-            source_amount, dest_amount, secret_hash, timelock
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, [
-          order.maker_address,
-          order.source_chain,
-          order.dest_chain,
-          order.source_token,
-          order.dest_token,
-          order.source_amount,
-          order.dest_amount,
-          order.secret_hash,
-          order.timelock
-        ]);
-      }
-      
-      Logger.info('Test data seeded successfully');
+      Logger.info('Using Supabase - test data seeding disabled for now');
+      Logger.info('You can manually add test data through Supabase dashboard if needed');
     } catch (error) {
       Logger.error('Failed to seed test data', error);
       throw error;
@@ -160,7 +112,8 @@ export class DatabaseSetup {
       
       const connected = await this.testConnection();
       if (!connected) {
-        throw new Error('Cannot connect to database');
+        Logger.warn('Database connection failed - continuing with limited functionality');
+        return;
       }
 
       const schemaExists = await this.checkDatabaseSchema();
@@ -180,8 +133,8 @@ export class DatabaseSetup {
 
       Logger.info('Database setup completed successfully');
     } catch (error) {
-      Logger.error('Database setup failed', error);
-      throw error;
+      Logger.warn('Database setup encountered issues but continuing', error);
+      // Don't throw error - let the app start anyway
     }
   }
     

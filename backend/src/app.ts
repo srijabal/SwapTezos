@@ -10,6 +10,7 @@ import { FusionConfig } from './config/fusion';
 
 import fusionRouter from './routes/fusion';
 import statusRouter from './routes/status';
+import crossChainRouter from './routes/crossChain';
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use((req, res, next) => {
 
 app.use('/api/fusion', fusionRouter);
 app.use('/api/status', statusRouter);
+app.use('/api/cross-chain', crossChainRouter);
 
 app.get('/health', (req, res) => {
   res.json({ 

@@ -18,15 +18,15 @@ router.get('/fusion/:orderHash', async (req, res) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: orderStatus
     });
   } catch (error) {
     Logger.error('Failed to get order status', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Failed to get order status',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : 'Unknown error' : 'Internal server error'
     });
   }
 });
@@ -38,15 +38,15 @@ router.get('/orders', async (req, res) => {
     
     const orders = await FusionOrderService.listOrders(limit, offset);
     
-    res.json({
+    return res.json({
       success: true,
       data: orders
     });
   } catch (error) {
     Logger.error('Failed to list orders', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Failed to list orders',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : 'Unknown error' : 'Internal server error'
     });
   }
 });
@@ -80,13 +80,13 @@ router.get('/health', async (req, res) => {
     const allHealthy = blockchainHealth.ethereum && blockchainHealth.tezos;
     const status = allHealthy ? 200 : 503;
     
-    res.status(status).json({
+    return res.status(status).json({
       success: allHealthy,
       data: health
     });
   } catch (error) {
     Logger.error('Health check failed', error);
-    res.status(503).json({ 
+    return res.status(503).json({ 
       success: false,
       error: 'Health check failed',
       timestamp: new Date().toISOString()
@@ -109,15 +109,15 @@ router.get('/stats', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    res.json({
+    return res.json({
       success: true,
       data: stats
     });
   } catch (error) {
     Logger.error('Failed to get stats', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Failed to get stats',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : 'Unknown error' : 'Internal server error'
     });
   }
 });

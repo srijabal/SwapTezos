@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import WalletButtons from "@/components/WalletButtons";
+import Image from "next/image";
 
 export default function Navbar() {
   return (
@@ -8,7 +9,7 @@ export default function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="text-xl font-bold text-primary">
-            SwapTezos
+            <Image src="/SwapTezosLogo.png" alt="SwapTezos" width={150} height={150} />
           </Link>
 
           <div className="hidden md:flex items-center space-x-4">
